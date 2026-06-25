@@ -965,7 +965,7 @@ async function arGet(path, _retry = 0) {
   return r.json();
 }
 
-async function fetchNotamsForIcaos(icaoList, startEpoch, endEpoch, limit = 100) {
+async function fetchNotamsForIcaos(icaoList, startEpoch, endEpoch, limit = 800) {
   const encoded = encodeURIComponent(JSON.stringify(icaoList));
   const path = '/notam?itemas=' + encoded + '&limit=' + limit +
     '&startvalidity=' + startEpoch + '&endvalidity=' + endEpoch + '&offset=0';
@@ -1750,12 +1750,12 @@ async function go() {
     // Route airports (no FIRs) in batches of 20
     for (let i = 0; i < routeSeq.length; i += 20) {
       const batch = routeSeq.slice(i, i+20);
-      const res = await fetchNotamsForIcaos(batch, startEpoch, endEpoch, 100);
+      const res = await fetchNotamsForIcaos(batch, startEpoch, endEpoch, 800);
       Object.assign(routeApts, res);
     }
     // FIRs fetched individually with higher limit
     for (const fir of firs) {
-      const res = await fetchNotamsForIcaos([fir], startEpoch, endEpoch, 100);
+      const res = await fetchNotamsForIcaos([fir], startEpoch, endEpoch, 800);
       Object.assign(routeApts, res);
     }
     const fetchedAt = new Date().toISOString();
@@ -1763,15 +1763,25 @@ async function go() {
 
     const extraFirs = firsForIcaos(exs, [...routeSeq, ...firs]);
     const allFetched = new Set([...routeSeq, ...firs]);
-    const extrasFetch = [...exs, ...extraFirs].filter(x => !allFetched.has(x));
-    if (extrasFetch.length) {
-      for (let i = 0; i < extrasFetch.length; i += 20) {
-        const batch = extrasFetch.slice(i, i+20);
+    // Extra airports (not FIRs) — batched, moderate limit
+    const extraApts = exs.filter(x => !allFetched.has(x));
+    if (extraApts.length) {
+      for (let i = 0; i < extraApts.length; i += 20) {
+        const batch = extraApts.slice(i, i+20);
         try {
-          const res = await fetchNotamsForIcaos(batch, startEpoch, endEpoch, 100);
+          const res = await fetchNotamsForIcaos(batch, startEpoch, endEpoch, 800);
           Object.assign(routeApts, res);
         } catch(e) {}
       }
+    }
+    // Extra FIRs — fetched individually with high limit to avoid cutoff
+    // when batched with airports (FIRs can have hundreds of NOTAMs)
+    for (const fir of extraFirs) {
+      if (allFetched.has(fir)) continue;
+      try {
+        const res = await fetchNotamsForIcaos([fir], startEpoch, endEpoch, 800);
+        Object.assign(routeApts, res);
+      } catch(e) {}
     }
     setProg(62);
 
@@ -1780,7 +1790,7 @@ async function go() {
       const batch = nearbyIcaos.slice(i, i+20);
       setStat('Nearby batch ' + (Math.floor(i/20)+1) + '/' + Math.ceil(nearbyIcaos.length/20) + '…');
       try {
-        const res = await fetchNotamsForIcaos(batch, startEpoch, endEpoch, 50);
+        const res = await fetchNotamsForIcaos(batch, startEpoch, endEpoch, 800);
         Object.assign(nearbyApts, res);
       } catch(e) { batch.forEach(x => { nearbyApts[x] = { notams: [], total: 0, error: String(e) }; }); }
       setProg(62 + Math.round((i / Math.max(nearbyIcaos.length, 1)) * 33));
