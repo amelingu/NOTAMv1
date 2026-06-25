@@ -40,6 +40,21 @@ OPENAIP_API_KEY: str = ''
 # Request a free account at: https://augur.eurocontrol.int/connectivity/
 AUGUR_USERNAME: str = ''
 AUGUR_PASSWORD: str = ''
+
+# ── AUGUR per-airport mask angle overrides (optional) ─────────────────────────
+# Default mask angle is 5° (suitable for flat terrain). For airports surrounded
+# by significant terrain, a higher mask angle gives more realistic predictions.
+# Maximum accepted by the API: 12.5°. Uncomment and adjust as needed.
+# French examples:
+AUGUR_MASK_OVERRIDES: dict = {{
+    # 'LFMN': 10.0,  # Nice — Alpes-Maritimes to the N/NE
+    # 'LFLB': 12.5,  # Chambéry — surrounded by Alps on three sides
+    # 'LFKJ': 10.0,  # Ajaccio — Monte Rotondo massif to the NE
+    # 'LFKB': 10.0,  # Bastia — terrain rising steeply to the W
+    # 'LFLI': 10.0,  # Annecy — surrounded by pre-Alps
+    # 'LFHU': 10.0,  # Albertville — deep Alpine valley
+    # 'LFLS': 10.0,  # Grenoble — Chartreuse and Belledonne massifs
+}}
 '''
 
 def _encode(value: str) -> str:

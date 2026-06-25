@@ -37,14 +37,19 @@ except ImportError:
     AUGUR_USERNAME = ""
     AUGUR_PASSWORD = ""
 
+try:
+    from config import AUGUR_MASK_OVERRIDES
+except ImportError:
+    AUGUR_MASK_OVERRIDES = {}
+
 BASE_URL      = "https://augur.eurocontrol.int/api/v1"
 CACHE_TTL     = 30 * 60          # 30 minutes
-ALGO_PARAMS   = {
-    "algorithm":              "FD",
-    "mask_angle":             12.5,   # matches AUGUR web tool default
+ALGO_PARAMS_BASE = {
+    "algorithm":              "FDE",
+    "mask_angle":             5.0,
     "procedure":              "RNP_APCH_03",
     "selective_availability": "aware_OFF",
-    "baro_aiding":            True,   # matches AUGUR web tool default
+    # baro_aiding is set dynamically per request based on LNAV/VNAV equipment
 }
 # Scenario is considered stale if its end_time is more than 6h before brief_start
 STALE_HORIZON = 6 * 3600
@@ -128,11 +133,11 @@ def clear_cache():
         _cache.clear()
     log.info("[raim] cache cleared")
 
-def _cache_key(airports, brief_start, brief_end):
-    return (frozenset(airports), int(brief_start or 0), int(brief_end or 0))
+def _cache_key(airports, brief_start, brief_end, baro_aiding=False):
+    return (frozenset(airports), int(brief_start or 0), int(brief_end or 0), baro_aiding)
 
 # ── Core fetch ────────────────────────────────────────────────────────────────
-def fetch_raim(airports, brief_start=0.0, brief_end=0.0):
+def fetch_raim(airports, brief_start=0.0, brief_end=0.0, baro_aiding=False):
     """
     Fetch RAIM outage predictions for a list of ICAO airport codes.
 
@@ -163,7 +168,7 @@ def fetch_raim(airports, brief_start=0.0, brief_end=0.0):
                 "scenario_start": None, "scenario_end": None,
                 "scenario_stale": False, "fetched_at": time.time()}
 
-    key = _cache_key(airports, brief_start, brief_end)
+    key = _cache_key(airports, brief_start, brief_end, baro_aiding)
     with _cache_lock:
         cached = _cache.get(key)
         if cached and time.time() - cached["fetched_at"] < CACHE_TTL:
@@ -193,11 +198,36 @@ def fetch_raim(airports, brief_start=0.0, brief_end=0.0):
             start_date = dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%dT00:00:00Z')
         print(f"[raim] start_date={start_date}", flush=True)
 
-        body = _post(f"{BASE_URL}/outage/", {
-            "locations":  [{"code": c} for c in airports],
-            "algorithm":  ALGO_PARAMS,
-            "start_date": start_date,
-        }, headers=_auth_headers())
+        algo_params_base = {**ALGO_PARAMS_BASE, "baro_aiding": baro_aiding}
+        print(f"[raim] algo: {algo_params_base}, overrides: {AUGUR_MASK_OVERRIDES}", flush=True)
+
+        # Group airports by effective mask angle — airports with overrides in
+        # AUGUR_MASK_OVERRIDES get their own API call since the mask angle is
+        # a single value per request. Capped at 12.5° (API maximum).
+        from collections import defaultdict
+        by_mask = defaultdict(list)
+        for code in airports:
+            mask = min(float(AUGUR_MASK_OVERRIDES.get(code, ALGO_PARAMS_BASE["mask_angle"])), 12.5)
+            by_mask[mask].append(code)
+
+        all_locations = []
+        body = None
+        for mask, group in by_mask.items():
+            algo = {**algo_params_base, "mask_angle": mask}
+            if len(by_mask) > 1:
+                print(f"[raim] group mask={mask}°: {group}", flush=True)
+            b = _post(f"{BASE_URL}/outage/", {
+                "locations":  [{"code": c} for c in group],
+                "algorithm":  algo,
+                "start_date": start_date,
+            }, headers=_auth_headers())
+            all_locations.extend(b.get("locations") or [])
+            if body is None:
+                body = b  # keep first response for gps_status/algorithm metadata
+
+        # Reconstruct a unified body with all locations merged
+        if body is not None:
+            body["locations"] = all_locations
 
         # Use /status/ end_time as the authoritative scenario horizon for
         # staleness checking. The gps_status embedded in the /outage/ response
@@ -220,7 +250,12 @@ def fetch_raim(airports, brief_start=0.0, brief_end=0.0):
             except Exception:
                 pass
 
-        # Build per-airport outage map, filtering to the brief window
+        # Build per-airport outage map, filtering to the brief window.
+        # Also record the effective mask angle used per airport.
+        airport_masks = {c: min(float(AUGUR_MASK_OVERRIDES.get(c, ALGO_PARAMS_BASE["mask_angle"])), 12.5)
+                         for c in airports}
+        default_mask  = ALGO_PARAMS_BASE["mask_angle"]
+
         airport_data = {}
         for loc in body.get("locations") or []:
             code    = loc.get("code", "").upper()
@@ -242,6 +277,7 @@ def fetch_raim(airports, brief_start=0.0, brief_end=0.0):
             airport_data[code] = {
                 "outages":           outages,
                 "outages_in_window": in_window,
+                "mask_angle":        airport_masks.get(code, default_mask),
             }
 
         result = {
@@ -253,6 +289,7 @@ def fetch_raim(airports, brief_start=0.0, brief_end=0.0):
             "almanac_end":    almanac_end,
             "start_date":     start_date,
             "scenario_stale": stale,
+            "baro_aiding":    baro_aiding,
             "fetched_at":     fetched_at,
         }
 
@@ -281,13 +318,13 @@ def fetch_raim(airports, brief_start=0.0, brief_end=0.0):
 
 
 def fetch_raim_background(airports, brief_start=0.0, brief_end=0.0,
-                          callback=None):
+                          baro_aiding=False, callback=None):
     """
     Trigger a background fetch (non-blocking).
     callback(result) is called when the fetch completes, if provided.
     """
     def _run():
-        result = fetch_raim(airports, brief_start, brief_end)
+        result = fetch_raim(airports, brief_start, brief_end, baro_aiding)
         if callback:
             try:
                 callback(result)

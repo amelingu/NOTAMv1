@@ -3431,7 +3431,7 @@ function renderObstMap(allApts, thresh, coordMap, radiusNm, legPairs) {
 let _raimData = null;      // last successful result
 let _raimFetching = false; // prevent overlapping fetches
 
-async function loadRaimData(airports, briefStart, briefEnd) {
+async function loadRaimData(airports, briefStart, briefEnd, baroAiding) {
   if (_raimFetching) return;
   _raimFetching = true;
   _raimData = null;
@@ -3445,6 +3445,7 @@ async function loadRaimData(airports, briefStart, briefEnd) {
         airports:    airports,
         brief_start: briefStart || 0,
         brief_end:   briefEnd   || 0,
+        baro_aiding: baroAiding || false,
       }),
     });
     const data = await resp.json();
@@ -3506,14 +3507,29 @@ function raimStatusHtml(data, loading) {
     .sort(([a], [b]) => a < b ? -1 : 1);
 
   // Show the date the predictions were computed for (start_date sent to AUGUR)
-  const startDate = data.start_date;  // YYYY-MM-DD
+  const startDate = data.start_date;  // YYYY-MM-DDThh:mm:ssZ
   const scenarioEnd = data.scenario_end;
   let staleCaveat = '';
   if (startDate) {
-    // Format YYYY-MM-DD as DD/MM/YYYY
-    const parts = startDate.split('-');
-    const fmtDate = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : startDate;
+    // Extract just the date portion from the ISO datetime string
+    const dateOnly = startDate.slice(0, 10);  // "YYYY-MM-DD"
+    const parts = dateOnly.split('-');
+    const fmtDate = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : dateOnly;
+
+    // Group airports by mask angle, sorted highest first
+    const byMask = {};
+    Object.entries(airports).forEach(([code, v]) => {
+      const m = (v.mask_angle || 5.0).toFixed(1);
+      if (!byMask[m]) byMask[m] = [];
+      byMask[m].push(code);
+    });
+    const maskLines = Object.keys(byMask)
+      .sort((a, b) => parseFloat(b) - parseFloat(a))
+      .map(m => `mask ${parseFloat(m)}°: ${byMask[m].join(', ')}`)
+      .join(' · ');
+
     staleCaveat = '<div style="margin-top:4px;font-size:10px;color:#888">'
+      + escH(maskLines) + '<br>'
       + 'AUGUR predictions for ' + escH(fmtDate)
       + ' — always verify at <a href="https://augur.eurocontrol.int/tool/" target="_blank" '
       + 'style="color:#1565C0;text-decoration:underline">augur.eurocontrol.int</a>.'
@@ -3541,7 +3557,7 @@ function raimStatusHtml(data, loading) {
       + 'break-before:avoid;font-size:11px;color:#2E7D32;background:#E8F5E9;'
       + 'border-left:3px solid #2E7D32;padding:6px 10px;border-radius:6px">'
       + '✓ No GNSS RAIM outages predicted during planned flight'
-      + ' (LNAV/VNAV · mask 12.5° · baro ON — ' + Object.keys(airports).join(', ') + ')'
+      + ' (LNAV/VNAV · ' + (data.baro_aiding ? 'baro ON' : 'no baro') + ' — ' + Object.keys(airports).join(', ') + ')'
       + staleCaveat
       + officialLink
       + '</div>';
@@ -3959,7 +3975,8 @@ function renderAll(routeApts, nearbyApts, allApts, nearbyIcaos, routeSeq, roles,
   // GNSS RAIM outage predictions — IFR only, background fetch via AUGUR API.
   // routeSeq and _briefStart/_briefEnd are available here from renderAll's args.
   if ((document.getElementById('rules').value || '').toUpperCase() === 'IFR') {
-    loadRaimData(routeSeq, _briefStart, _briefEnd);
+    const _baroAiding = document.getElementById('eq-lnav-vnav')?.checked || false;
+    loadRaimData(routeSeq, _briefStart, _briefEnd, _baroAiding);
   }
   // Move new #map-lcard outside #results — float layout causes blank page otherwise
   var _mapLcard = document.getElementById('map-lcard');

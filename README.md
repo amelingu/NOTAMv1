@@ -32,6 +32,7 @@ A local web application for pilots and air traffic controllers to fetch, filter,
 - [Setting up AZBA/RTBA zone data](#setting-up-azbartba-zone-data)
 - [Setting up AZBA activation schedule](#setting-up-azba-activation-schedule)
 - [Setting up GNSS RAIM predictions](#setting-up-gnss-raim-predictions)
+  - [Per-airport mask angle overrides](#per-airport-mask-angle-overrides)
 - [Reference](#reference)
   - [Prerequisites](#prerequisites)
   - [Folder structure](#folder-structure)
@@ -52,7 +53,7 @@ A local web application for pilots and air traffic controllers to fetch, filter,
 - **Map styles** — Standard (CartoCDN), Relief (Esri shaded relief), Satellite (Esri), and openAIP (OSM base + aviation overlay showing airspaces, airports and navaids)
 - **Per-NOTAM map view** — click the 📍 map badge on any NOTAM to open the fullscreen map centred and zoomed on that NOTAM's geometry
 - **AZBA/RTBA integration** — French military low-altitude training zone polygons plotted on the map with activation status from the SIA SOFIA API; active zones shown in red, inactive in blue; click any zone for its exact activation time slots; a dedicated status card in the briefing lists all zones active during the planned flight window, with a 📍 map badge opening the fullscreen map centred on active zones
-- **GNSS RAIM outage predictions** — for IFR flights, checks the EUROCONTROL AUGUR API for predicted RAIM outages at all route airports (ADEP, ADEST, alternates, ICAO waypoints) within the planned flight window; results cached for 30 minutes; outages and scenario window displayed in a dedicated briefing card (requires AUGUR account — free for pilots, see [Setting up GNSS RAIM predictions](#setting-up-gnss-raim-predictions))
+- **GNSS RAIM outage predictions** — for IFR flights, checks the EUROCONTROL AUGUR API for predicted RAIM outages at all route airports within the planned flight window; algorithm FDE, procedure LNAV/VNAV (RNP 0.3), baro aiding linked to the LNAV/VNAV equipment checkbox; per-airport mask angle overrides for mountainous terrain (requires AUGUR account — free for pilots)
 - **AI NOTAM summary** — concise per-ICAO plain-language summaries in pilot shorthand, aware of your approach equipment, time-limited NOTAMs, and acknowledged NEW/GONE changes, generated via the Anthropic API (optional, configurable directly in the app)
 - **PDF export** — printable briefing with map rasterisation (including AZBA zone labels), working on all platforms including iPad/iPhone
 - **Cross-device sync** — snapshot files synced automatically to a private GitHub repository; preferences synced separately
@@ -110,7 +111,7 @@ ln -s bin/linux/Notam_linux.sh Notam_linux.sh
 ln -s bin/linux/stop_notam_linux.sh stop_notam_linux.sh
 ```
 
-Afterwards, `./Notam_linux.sh` and `./stop_notam_linux.sh` work directly from `NOTAMv1/`.
+Afterwards, `./Notam_linux.sh` and `./stop_notam_linux.sh` work directly from `NOTAMv1/`. These symlinks are listed in `.gitignore` and are never committed.
 
 ### macOS
 
@@ -329,6 +330,8 @@ Click 🚫 on any NOTAM to permanently suppress it. Stored in `_never.json` and 
 
 Hides procedure NOTAMs irrelevant to your aircraft's approach capabilities. Tick each approach type your aircraft is certified and equipped to fly.
 
+> **Note on LNAV/VNAV and RAIM:** ticking LNAV/VNAV also enables barometric aiding in the GNSS RAIM prediction (see [Setting up GNSS RAIM predictions](#setting-up-gnss-raim-predictions)), since baro aiding is a realistic assumption when the aircraft has LNAV/VNAV capability.
+
 ---
 
 ## Cross-device snapshot sync
@@ -436,7 +439,7 @@ The schedule is cached for 15 minutes. The publication window typically covers a
 
 ## Setting up GNSS RAIM predictions
 
-GNSS RAIM outage predictions are fetched from the [EUROCONTROL AUGUR](https://augur.eurocontrol.int) API for IFR flights. This predicts periods during which GNSS RAIM may not be available at your destination and alternates for the approach procedure (RNP APCH — LNAV/VNAV).
+GNSS RAIM outage predictions are fetched from the [EUROCONTROL AUGUR](https://augur.eurocontrol.int) API for IFR flights. This predicts periods during which GNSS RAIM may not be available at route airports for the approach procedure (LNAV/VNAV — RNP 0.3).
 
 **Requirements:** a free AUGUR API account. Register via the Connectivity page at [augur.eurocontrol.int/connectivity/](https://augur.eurocontrol.int/connectivity/).
 
@@ -449,19 +452,48 @@ AUGUR_PASSWORD = 'yourpassword'
 
 Restart the server after editing `config.py`.
 
-**What is checked:** all airports listed in the Route — ICAO codes section — ADEP, ADEST, take-off alternate, both destination alternates, ICAO waypoints, and additional airports. The check uses procedure RNP APCH (LNAV/VNAV), algorithm FD, mask angle 5°.
+**What is checked:** all airports listed in the Route — ICAO codes section — ADEP, ADEST, take-off alternate, both destination alternates, ICAO waypoints, and additional airports.
+
+**Algorithm parameters:**
+- Algorithm: FDE (Fault Detection and Exclusion — required for LNAV/VNAV approaches under EASA AMC 20-4)
+- Procedure: RNP APCH 0.3 (LNAV/VNAV)
+- Mask angle: 5° by default (adjustable per airport — see below)
+- Barometric aiding: ON when LNAV/VNAV is ticked in the Approach equipment filter, OFF otherwise
+- Selective availability: OFF (SA has been permanently disabled since 2000)
 
 **What is shown:** a status card in the briefing (IFR flights only):
 - **Green** — no RAIM outages predicted at any route airport during the flight window
 - **Orange** — outages predicted at one or more airports, listed with start/end times and duration
-- **Amber caveat** — the AUGUR scenario window doesn't cover your full flight time
+- **Amber caveat** — the AUGUR prediction horizon doesn't cover the full flight window
 - **Grey** — AUGUR credentials not configured, or data unavailable
 
-**Caching:** results are cached for 30 minutes per (airport set, flight window) combination. The cache is cleared on each new NOTAM fetch.
+The card always shows the date for which predictions were computed and a link to the AUGUR web tool for manual verification.
 
-**Performance note:** AUGUR's prediction computation typically takes 15–30 seconds per request. The fetch runs in the background after you click Fetch NOTAMs — the RAIM card appears once the result is ready, without blocking the rest of the briefing.
+**Caching:** results are cached for 30 minutes per (airport set, flight window, baro aiding) combination. The cache is cleared on each new NOTAM fetch.
 
-> **Scope:** RAIM prediction is only meaningful for IFR flights using GNSS approaches (RNP APCH). The RAIM card is not shown for VFR flights. For RNAV en-route use, GPS NOTAMs (KGPS/KNMH) from the NOTAM feed remain the primary reference.
+**Performance note:** AUGUR's computation typically takes 15–30 seconds per request. The fetch runs in the background — the RAIM card appears once the result is ready without blocking the rest of the briefing.
+
+> **Scope:** RAIM prediction is only meaningful for IFR flights using GNSS approaches. The RAIM card is not shown for VFR flights. For RNAV en-route use, GPS NOTAMs (KGPS/KNMH) from the NOTAM feed remain the primary reference.
+
+### Per-airport mask angle overrides
+
+AUGUR computes satellite geometry using a uniform horizon mask angle. The default of 5° is appropriate for flat terrain, but airports surrounded by mountains have a significantly higher effective horizon — satellites below 10–15° elevation may be completely invisible behind terrain, making a 5° mask optimistic and predictions unreliable.
+
+You can specify a higher mask angle (up to 12.5°, the API maximum) for individual airports in `config.py`:
+
+```python
+AUGUR_MASK_OVERRIDES = {
+    # 'LFMN': 10.0,  # Nice Côte d'Azur — Alpes-Maritimes to the N/NE
+    # 'LFLB': 12.5,  # Chambéry-Savoie — surrounded by Alps on three sides
+    # 'LFKJ': 10.0,  # Ajaccio — Monte Rotondo massif to the NE
+    # 'LFKB': 10.0,  # Bastia — terrain rising steeply to the W
+    # 'LFLI': 10.0,  # Annecy — surrounded by pre-Alps
+    # 'LFHU': 10.0,  # Albertville — deep Alpine valley
+    # 'LFLS': 10.0,  # Grenoble — Chartreuse and Belledonne massifs
+}
+```
+
+All entries are commented out by default. Uncomment and adjust based on your own operational experience at each airport. Airports with an override get a separate AUGUR API call; results are merged transparently before display.
 
 ---
 
@@ -477,7 +509,8 @@ Restart the server after editing `config.py`.
 
 ```
 NOTAMv1/
-├── config.py                    ← your credentials — create once, never share
+├── config.py                    ← your credentials and personal settings
+│                                   (create once, never share, never commit)
 ├── requirements.txt             ← Python dependencies (certifi only)
 ├── .gitignore
 ├── README.md
@@ -491,11 +524,11 @@ NOTAMv1/
 │   │                               refresh, SIA SOFIA activation schedule
 │   └── raim.py                  ← GNSS RAIM outage predictions via AUGUR API
 ├── data/
-│   ├── zones_RTBA_openAIP.csv   ← AZBA/RTBA zone geometry — place new exports here
-│   └── azba_zones_cache.json    ← generated cache (not committed — see .gitignore)
+│   ├── zones_RTBA_openAIP.csv   ← AZBA/RTBA zone geometry (tracked in git)
+│   └── azba_zones_cache.json    ← generated cache (gitignored)
 ├── bin/
 │   ├── linux/
-│   │   ├── Notam_linux.sh       ← one-click launcher
+│   │   ├── Notam_linux.sh       ← one-click launcher (also usable via symlink at root)
 │   │   ├── start_notam_linux.sh
 │   │   └── stop_notam_linux.sh
 │   ├── mac/
@@ -516,15 +549,17 @@ NOTAMv1/
 │       └── stop_notam_ios.py
 ├── logs/
 │   ├── .gitkeep
-│   └── notam_server.log         ← runtime log (not committed)
-└── snapshots/                   ← JSON snapshot files (synced via GitHub)
+│   └── notam_server.log         ← runtime log (gitignored)
+├── snapshots/                   ← JSON snapshot files — gitignored here, synced
+│                                   separately via a private GitHub repo (see above)
+└── test/                        ← local dev/test scripts — gitignored
 ```
 
 ### Security note
 
-`config.py` contains your credentials in base64 obfuscation. This is not encryption — it only prevents casual shoulder-surfing. The file is listed in `.gitignore` and must never be committed, emailed, or shared. Each device running NOTAMv1 has its own `config.py`, created locally on first launch.
+`config.py` contains your credentials in base64 obfuscation (autorouter.aero) or plain text (all other keys). This is not encryption — it only prevents casual shoulder-surfing. The file is listed in `.gitignore` and must never be committed, emailed, or shared. Each device running NOTAMv1 has its own `config.py`, created locally on first launch.
 
-The AUGUR password in `config.py` is stored in plain text (the AUGUR API does not support token-based registration — credentials are submitted directly). The same security precautions apply: never share `config.py`, never commit it, keep it on-device only.
+In particular: the AUGUR password, openAIP API key, Anthropic API key, and GitHub personal access token are all stored in plain text within `config.py`. Keep this file on-device only.
 
 ---
 

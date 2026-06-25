@@ -825,13 +825,14 @@ if (!data) {
             airports    = [a.strip().upper() for a in body.get('airports', []) if a.strip()]
             brief_start = float(body.get('brief_start', 0) or 0)
             brief_end   = float(body.get('brief_end',   0) or 0)
-            print(f'[raim] fetch request: {airports} brief={brief_start:.0f}→{brief_end:.0f}', flush=True)
+            baro_aiding = bool(body.get('baro_aiding', False))
+            print(f'[raim] fetch request: {airports} brief={brief_start:.0f}→{brief_end:.0f} baro={baro_aiding}', flush=True)
             if not airports:
                 self._json({'ok': False, 'error': 'No airports provided',
                             'airports': {}, 'scenario_start': None, 'scenario_end': None,
                             'scenario_stale': False, 'fetched_at': 0})
                 return
-            result = raim.fetch_raim(airports, brief_start, brief_end)
+            result = raim.fetch_raim(airports, brief_start, brief_end, baro_aiding)
             self._json(result)
         except Exception as e:
             import traceback; traceback.print_exc()
