@@ -1,0 +1,45 @@
+# ── Virtual environment ───────────────────────────────────────────────────────
+.venv/
+
+# ── Credentials — NEVER commit ────────────────────────────────────────────────
+config.py
+config.txt
+
+# ── Runtime files ─────────────────────────────────────────────────────────────
+notam_server.pid
+notam_server_url.txt
+azba_zones_cache.json
+
+# ── Snapshots (synced via GitHub separately, not part of the code repo) ────────
+snapshots/
+
+# ── Optional convenience symlinks at project root (see README) ────────────────
+/Notam_linux.sh
+/stop_notam_linux.sh
+/start_notam_linux.sh
+
+# ── Logs — folder tracked via logs/.gitkeep, contents ignored ─────────────────
+logs/*.log
+
+# ── Python cache ──────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+
+# ── OS files ──────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Editor files ──────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Dev/test folder (not part of the distributed app) ─────────────────────────
+test/
+
+# ── Retired scripts (superseded by src/update_maprender.py) ──────────────────
+bin/update_maprender.sh
+bin/update_maprender.bat

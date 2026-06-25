@@ -1,0 +1,4988 @@
+// ── Suppress state ────────────────────────────────────────────────────────
+// No local suppress — use print checkboxes instead
+
+// ── FIR table ─────────────────────────────────────────────────────────────
+const FIR_MAP = [
+  // ── France: Brest FIR (LFRR) — Brittany, Normandy west, Atlantic islands ──
+  ['LFRA','LFRR'],['LFRB','LFRR'],['LFRC','LFRR'],['LFRD','LFRR'],
+  ['LFRE','LFRR'],['LFRF','LFRR'],['LFRG','LFRR'],['LFRH','LFRR'],
+  ['LFRI','LFRR'],['LFRJ','LFRR'],['LFRK','LFRR'],['LFRL','LFRR'],
+  ['LFRM','LFRR'],['LFRN','LFRR'],['LFRO','LFRR'],['LFRP','LFRR'],
+  ['LFRQ','LFRR'],['LFRS','LFRR'],['LFRT','LFRR'],['LFRU','LFRR'],
+  ['LFRV','LFRR'],['LFRW','LFRR'],['LFRZ','LFRR'],
+  // Atlantic islands (Oléron, Ré, Yeu, Noirmoutier, Belle-Île…) → LFRR
+  ['LFEA','LFRR'],['LFEB','LFRR'],['LFEC','LFRR'],['LFED','LFRR'],
+  ['LFEE','LFRR'],['LFEQ','LFRR'],['LFER','LFRR'],['LFES','LFRR'],
+  ['LFEY','LFRR'],
+  // ── France: Bordeaux FIR (LFBB) ──
+  ['LFBA','LFBB'],['LFBC','LFBB'],['LFBD','LFBB'],['LFBE','LFBB'],
+  ['LFBF','LFBB'],['LFBG','LFBB'],['LFBH','LFBB'],['LFBI','LFBB'],
+  ['LFBJ','LFBB'],['LFBK','LFBB'],['LFBL','LFBB'],['LFBM','LFBB'],
+  ['LFBN','LFBB'],['LFBO','LFBB'],['LFBP','LFBB'],['LFBR','LFBB'],
+  ['LFBS','LFBB'],['LFBT','LFBB'],['LFBU','LFBB'],['LFBV','LFBB'],
+  ['LFBX','LFBB'],['LFBY','LFBB'],['LFBZ','LFBB'],
+  ['LFOG','LFBB'],['LFOM','LFBB'],['LFOO','LFBB'],['LFOU','LFBB'],['LFOV','LFBB'],
+  ['LFIT','LFBB'],  // Toulouse Bourg-Saint-Bernard — Haute-Garonne, near Toulouse
+  ['LFCL','LFBB'],  // Toulouse-Lasbordes — confirmed Bordeaux FIR
+  ['LFDE','LFBB'],  // Égletons — Corrèze, confirmed Bordeaux FIR
+  // ── France: Marseille FIR (LFMM) — SE France + Corsica ──
+  ['LFKB','LFMM'],['LFKC','LFMM'],['LFKF','LFMM'],['LFKJ','LFMM'],['LFKX','LFMM'],
+  ['LFMA','LFMM'],['LFMC','LFMM'],['LFMD','LFMM'],['LFME','LFMM'],
+  ['LFMH','LFMM'],['LFMI','LFMM'],['LFMK','LFMM'],['LFML','LFMM'],
+  ['LFMN','LFMM'],['LFMO','LFMM'],['LFMP','LFMM'],['LFMQ','LFMM'],
+  ['LFMR','LFMM'],['LFMS','LFMM'],['LFMT','LFMM'],['LFMU','LFMM'],
+  ['LFMV','LFMM'],['LFMW','LFMM'],['LFMX','LFMM'],['LFMY','LFMM'],['LFMZ','LFMM'],
+  ['LFSB','LFMM'],['LFSC','LFMM'],['LFSD','LFMM'],['LFSE','LFMM'],
+  ['LFSF','LFMM'],['LFSG','LFMM'],['LFSH','LFMM'],['LFSI','LFMM'],
+  ['LFSK','LFMM'],['LFSL','LFMM'],['LFSM','LFMM'],['LFSN','LFMM'],
+  ['LFSO','LFMM'],['LFSP','LFMM'],['LFSQ','LFMM'],['LFSR','LFMM'],
+  ['LFST','LFMM'],['LFSU','LFMM'],['LFSV','LFMM'],
+  // ── France: 3-char fallbacks (remaining LF* → Paris FIR LFFF) ──
+  ['LFR','LFRR'],['LFB','LFBB'],['LFK','LFMM'],['LFL','LFMM'],
+  ['LFM','LFMM'],['LFS','LFMM'],['LFX','LFMM'],
+  ['LF','LFFF'],
+  // ── Other countries ──
+  ['EB','EBBU'],['EL','ELLX'],['EH','EHAA'],['ED','EDGG'],['ET','EDGG'],
+  ['EG','EGTT'],['EI','EISN'],['LE','LECM'],['LP','LPPC'],['LS','LSAZ'],
+  ['LI','LIMM'],['LO','LOVV'],['LK','LKAA'],['EP','EPWW'],
+  ['EN','ENOR'],['EK','EKDK'],['EF','EFIN'],['ES','ESAA'],
+  ['LY','LYBA'],['LH','LHCC'],['LZ','LZBB'],['LB','LBSR'],
+  ['LG','LGGG'],['LT','LTAA'],['GM','GMMM'],['DA','DAAA'],
+  ['UK','UKBV'],['UB','UBBA'],
+];
+
+function firForIcao(icao) {
+  if (!icao || icao.length < 2) return null;
+  for (const [pfx, fir] of FIR_MAP) if (icao.startsWith(pfx)) return fir;
+  return null;
+}
+// Only derive FIRs from the given list, excluding those already in the list
+function firsForIcaos(icaos, exclude = []) {
+  const s = new Set();
+  for (const i of icaos) { const f = firForIcao(i); if (f) s.add(f); }
+  for (const i of [...icaos, ...exclude]) s.delete(i);
+  return [...s].sort();
+}
+
+// ── Checklist detection ────────────────────────────────────────────────────
+<!--MAPRENDER_START-->
+function isChecklist(n) {
+  const raw = (n.iteme || '');
+  const e = raw.toUpperCase().replace(/\s+/g, ' ').trim();
+  // Text-based patterns — definitive
+  if (/\bCHECKLIST\b/.test(e)) return true;
+  if (/\bYEAR\s*=\s*\d{4}\b/.test(e)) return true;
+  if (/\bLATEST PUBLICATIONS\b/.test(e)) return true;
+  if (/\bLIST OF VALID PUBLICATIONS\b/.test(e)) return true;
+  if (/\bAIC SERIES\b/.test(e)) return true;
+  if (/\bAIP SUPPLEMENTS\b/.test(e)) return true;
+  if (/AIRAC AIP (AMDT|SUP).*EFFECTIVE DATE/i.test(e)) return true;
+  // Scope field purely 'K' (not mixed) = autorouter checklist marker
+  // But NOT if it's an operational service NOTAM (RFFS, ATC hours, etc.)
+  const scope = (Array.isArray(n.scope) ? n.scope.join('') : (n.scope || '')).toUpperCase().trim();
+  const isOpsServiceKCheck = /\b(RFFS|ARFF|FIRE\s*FIGHT|RESCUE|LEVEL\s+\d|ATC\s+(SERVICE|HRS|HOURS)|AFIS|HANDLING|FUEL|AVGAS|PPR|BIRD|ANIMAL|STRIKE|WILDLIFE|CURFEW|SNOW|ICE|SANDING|DEICE|DE-ICE)\b/.test(e);
+  if (/^K+$/.test(scope) && !isOpsServiceKCheck) return true;
+  // Body of checklist = many 4-digit numbers in a row
+  // BUT exempt operational service NOTAMs (RFFS, ATC hours, etc.) which
+  // legitimately contain many 4-digit times (0600, 1100, 1400...)
+  if ((e.match(/\b\d{4}\b/g) || []).length >= 12) {
+    const isOpsService = /\b(RFFS|ARFF|FIRE\s+FIGHT|RESCUE|ATC\s+(SERVICE|HRS|HOURS)|AFIS|TWR|APP|ACC|FIS|ATIS|APRON|HANDLING|FUEL|AVGAS|JET\s*A1|PPR|SLOTS|CURFEW|BIRD|ANIMAL|STRIKE|WILDLIFE)\b/.test(e);
+    if (!isOpsService) return true;
+  }
+  return false;
+}
+
+// Debug helper — call from console: debugNotam('LFFF') to inspect first few NOTAMs
+window._lastApts = {};
+function debugNotam(icao) {
+  const ad = window._lastApts[icao];
+  if (!ad) { console.log('No data for', icao); return; }
+  (ad.notams||[]).slice(0,5).forEach(n => {
+    console.log('---');
+    console.log('series:', n.series, 'number:', n.number, 'scope:', n.scope, 'purpose:', n.purpose, 'traffic:', n.traffic);
+    console.log('iteme (first 100):', (n.iteme||'').slice(0,100));
+    console.log('isChecklist:', isChecklist(n));
+  });
+}
+
+// ── Equipment filter ───────────────────────────────────────────────────────
+function shouldHideEquipment(n) {
+  if (!document.getElementById('filt-equip')?.checked) return false;
+  const e = (n.iteme || '').toUpperCase();
+  const cat = document.getElementById('acft-cat')?.value || 'A';
+  if (!/\b(OCA|OCH|DA\b|DH\b|MDA|MDH|LNAV|LPV|VNAV|RNP|ILS|LOC|APCH|IAP|PROC|MINIMA|MNM OPS)\b/.test(e)) return false;
+  if (/CIRCLING/.test(e)) return false;
+  if (/\bRNP\b/.test(e) && !/\b(LNAV|LPV|VNAV)\b/.test(e)) return false;
+  const cats = new Set(); const cr = /\bCAT\s+([ABCD])\b/g; let m;
+  while ((m = cr.exec(e)) !== null) cats.add(m[1]);
+  const mLPV = /\bLPV\b/.test(e), mLVN = /LNAV[\/\-]VNAV/.test(e), mLNAV = /\bLNAV\b/.test(e) && !mLVN;
+  const hLPV = document.getElementById('eq-lpv')?.checked || false;
+  const hLVN = document.getElementById('eq-lnav-vnav')?.checked || false;
+  const hLNAV = document.getElementById('eq-lnav')?.checked || false;
+  const mAny = mLPV || mLVN || mLNAV, canFly = (mLPV && hLPV) || (mLVN && hLVN) || (mLNAV && hLNAV);
+  // Equipment filter takes priority over category filter
+  if (mAny && !canFly) return true;   // equipment detected, can't fly it → hide
+  if (mAny && canFly)  return false;  // equipment detected, can fly it → show
+  // No equipment type detected — fall back to category filter
+  if (cats.size > 0 && !cats.has(cat)) return true;
+  return false;
+}
+
+// ── IFR/VFR traffic filter ────────────────────────────────────────────────
+function shouldHideByRules(n) {
+  const _rulesEl = document.getElementById('rules');
+  const rules = _rulesEl ? _rulesEl.value : 'IFR'; // default IFR on map page
+  const traffic = (n.traffic || '').trim().toUpperCase();
+  if (!traffic) return false; // no traffic specified = applies to all
+  if (traffic === 'IV' || traffic === 'IVG') return false; // applies to both
+  // 'I' = IFR only → hide if we're VFR
+  if (traffic === 'I' && rules === 'VFR') return true;
+  // 'V' = VFR only → hide if we're IFR
+  if (traffic === 'V' && rules === 'IFR') return true;
+  // 'G' = GAT/general air traffic → keep always
+  // Military/OAT-only traffic types
+  if (traffic === 'K' && rules === 'VFR') return true; // K = OAT only (military)
+  return false;
+}
+
+// ── Altitude band filter ──────────────────────────────────────────────────
+function parseCruiseFL() {
+  const raw = (document.getElementById('fl')?.value || '').toUpperCase().trim();
+  // Accept: FL085, FL90, 085, 90, F085 etc.
+  const m = raw.match(/(\d{2,3})/);
+  if (!m) return 999; // unknown → don't filter
+  return parseInt(m[1]);
+}
+
+function shouldHideByAltitude(n) {
+  // If lower/upper not set, assume it applies to all altitudes → keep
+  if (n.lower == null || n.upper == null) return false;
+  const lower = n.lower; // FL
+  const upper = n.upper; // FL
+  const cruiseFL = parseCruiseFL();
+  const maxFL = cruiseFL + 10;
+  // Our envelope: FL000 to cruiseFL+10
+  // Hide if NOTAM band is entirely above our ceiling
+  // Overlap exists if: lower <= maxFL AND upper >= 0
+  // No overlap (hide) if: lower > maxFL
+  if (lower > maxFL) return true;
+  return false;
+}
+
+// ── FIXED coordinate parsers ───────────────────────────────────────────────
+// KEY FIX: allow \d{2,3} for longitude degrees to handle both
+// '0014100W' (3-digit: 001°41'00) and '042817E' (2-digit: 04°28'17 for lons < 10°)
+const LAT_RE  = /(\d{2})(\d{2})(\d{2}\.?\d*)\s*([NS])/;
+const LON_RE  = /(\d{2,3})(\d{2})(\d{2}\.?\d*)\s*([EW])/;
+// Multi-coord version for zones
+const MCOORD_RE = /(\d{2})(\d{2})(\d{2}\.?\d*)\s*([NS])\s*(\d{2,3})(\d{2})(\d{2}\.?\d*)\s*([EW])/g;
+
+// AGL patterns — unambiguously height above ground, checked first
+const AGL_PAT = [
+  /MAX\s+(\d+(?:\.\d+)?)\s*FT\s*AGL/i,
+  /(\d+(?:\.\d+)?)\s*FT\s*AGL/i,
+  /UP TO\s+(\d+(?:\.\d+)?)\s*FT\s*AGL/i,
+];
+// Generic HEIGHT/HGT patterns — only used when no AGL value found
+// Excludes cases where AMSL immediately follows (those are elevations)
+const HGT_GENERIC_PAT = [
+  /HEIGHT\s*[:\-]?\s*(\d+(?:\.\d+)?)\s*FT(?!\s*AMSL)/i,
+  /HGT\s*[:\-]?\s*(\d+(?:\.\d+)?)\s*FT(?!\s*AMSL)/i,
+  /UP TO\s+(\d+(?:\.\d+)?)\s*FT/i,
+];
+const ELEV_PAT = [
+  /\((\d+(?:\.\d+)?)\s*FT\s*AMSL\)/i, /(\d+(?:\.\d+)?)\s*FT\s*AMSL/i,
+  /HGT\s*[:\-]?\s*(\d+(?:\.\d+)?)\s*FT\s*AMSL/i,
+  /ELEV\s*[:\-]?\s*(\d+(?:\.\d+)?)\s*FT/i, /ELEVATION\s*[:\-]?\s*(\d+(?:\.\d+)?)\s*FT/i,
+  /ALT\s+(\d+(?:\.\d+)?)\s*FT\s*MSL/i,
+];
+// AGL always takes priority over generic HGT — prevents "600FT AMSL (200FT AGL)" → 600
+// Values are rounded to the nearest foot for display/threshold purposes —
+// the source data's decimal precision (e.g. "71.07FT") is spurious precision
+// for a tree survey and not meaningful beyond whole feet.
+function parseHgt(e) {
+  for (const p of AGL_PAT)         { const m = e.match(p); if (m) return Math.round(parseFloat(m[1])); }
+  for (const p of HGT_GENERIC_PAT) { const m = e.match(p); if (m) return Math.round(parseFloat(m[1])); }
+  return null;
+}
+function parseElev(e) { for (const p of ELEV_PAT) { const m = e.match(p); if (m) return Math.round(parseFloat(m[1])); } return null; }
+
+function parseSingleCoord(text) {
+  const la = text.match(LAT_RE), lo = text.match(LON_RE);
+  if (!la || !lo) return null;
+  let lat = parseFloat(la[1]) + parseFloat(la[2]) / 60 + parseFloat(la[3]) / 3600;
+  if (la[4] === 'S') lat = -lat;
+  let lon = parseFloat(lo[1]) + parseFloat(lo[2]) / 60 + parseFloat(lo[3]) / 3600;
+  if (lo[4] === 'W') lon = -lon;
+  if (Math.abs(lat) < 0.001 && Math.abs(lon) < 0.001) return null;
+  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
+  return { lat, lon };
+}
+function parseMultiCoord(text) {
+  // Fix line-wrap artifacts: numbers split across lines
+  let t = text.replace(/(\d)[ \t]*\n[ \t]*(\d)/g, '$1$2');
+  const pts = []; const re = new RegExp(MCOORD_RE.source, 'g'); let m;
+  while ((m = re.exec(t)) !== null) {
+    let lat = parseFloat(m[1]) + parseFloat(m[2]) / 60 + parseFloat(m[3]) / 3600;
+    if (m[4] === 'S') lat = -lat;
+    let lon = parseFloat(m[5]) + parseFloat(m[6]) / 60 + parseFloat(m[7]) / 3600;
+    if (m[8] === 'W') lon = -lon;
+    if (Math.abs(lat) > 0.001 || Math.abs(lon) > 0.001) pts.push([lat, lon]);
+  }
+  return pts;
+}
+
+// ── Obstacle / zone detection ──────────────────────────────────────────────
+// LGT U/S and LIGHTING U/S removed — runway/taxiway lights out of service
+// are NOT physical obstacles. Only match when paired with obstacle context.
+const OBST_RE = /\b(CRANE|OBST|OBSTACLE|TOWER|MAST|CHIMNEY|STACK|PYLON|WIND TURBINE|WTG|DRILL OPR|DRILL|WINDTURBINE|WINDFARM|WINDPARK|OFFSHORE|CABLE CAR|CABLEWAY|WORK MACHINE|WORKING MACHINE|VEHICLE|TRUCK|EXCAVATOR|BUILDING CRANE|TOWER CRANE|MOBILE CRANE|SCAFFOLDING|ANTENNA|SILO|WINDSOCK|TREES?|WOODS?|PINE TREE|PYLONE)\b/i;
+
+function isObstacle(n) {
+  const e = (n.iteme || '').toUpperCase();
+  if (!OBST_RE.test(e)) return false;
+  // Exclude procedure-change NOTAMs that mention OBST only in context like "DUE TO OBST"
+  // These have no coordinates and are not physical obstacles on the map
+  // Exclude procedure-change NOTAMs: SID/STAR/approach minima changes that reference
+  // OBST only as a justification (e.g. 'DUE TO OBST', 'OBST SLOPE') — no real coords
+  if (/\b(MOCA|OCA|OCH|PROC|IAP|FAF|SDF|SID|STAR|SLOPE|GRADIENT|CLIMB GRADIENT|OFZ)\b/.test(e) && !parseSingleCoord(n.iteme || '')) return false;
+  return true;
+}
+function isZoneNotam(n) {
+  const e = (n.iteme || '').replace(/\n/g,' ').toUpperCase();
+  if (!/\b(TSA|TRA|PROHIBITED|RESTRICTED|DANGER|SEGREGATED|UAS|BVLOS|BEYOND VISUAL)\b/.test(e)) return false;
+  // Defer to isArcPolygon if this zone uses arc descriptions
+  if (/\b(RADIUS|ARC|ARCUS)\b/.test(e) && /\b(CENTRED|CENTERED|CENTRE)\b/.test(e)) return false;
+  return parseMultiCoord(n.iteme || '').length >= 3;
+}
+// Aerobatics / axis zone: PSN + AXIS bearing + LENGTH [+ WIDTH]
+function isAxisZone(n) {
+  const e = (n.iteme || '').toUpperCase();
+  // Match AXIS: 356 or ORIENTATION: 170 or ORIENTATION: 170/350
+  const hasAxis = /\bAXIS\s*:?\s*\d{3}/.test(e) || /\bORIENTATION\s*:?\s*\d{3}/.test(e);
+  if (!hasAxis) return false;
+  if (!parseSingleCoord(n.iteme || '')) return false;
+  // LENGTH is optional — default 5km is used when absent
+  return true;
+}
+
+// Parse an axis zone: returns {center, axisNm, lengthNm, widthNm} or null
+function parseAxisZone(n) {
+  const e = n.iteme || '';
+  const center = parseSingleCoord(e);
+  if (!center) return null;
+  // AXIS : 356/176 or AXIS : 356 — take first bearing
+  const axisM = e.toUpperCase().match(/(?:AXIS|ORIENTATION)\s*:?\s*(\d{3})/);
+  if (!axisM) return null;
+  const axisBrg = parseInt(axisM[1]);
+  // LENGTH : 3200M or 3200 M or 3.2KM
+  let lengthM = null;
+  let assumedLength = false;
+  const lenM = e.toUpperCase().match(/LENGTH\s*:?\s*([\d.]+)\s*(KM|M)?/);
+  if (lenM) {
+    lengthM = parseFloat(lenM[1]) * (lenM[2] === 'KM' ? 1000 : 1);
+  }
+  if (!lengthM) { lengthM = 5000; assumedLength = true; } // default 5km if not specified
+  // WIDTH : optional, default = length/2
+  let widthM = lengthM / 2;
+  let assumedWidth = false;
+  const widM = e.toUpperCase().match(/WIDTH\s*:?\s*([\d.]+)\s*(KM|M)?/);
+  if (widM) {
+    widthM = parseFloat(widM[1]) * (widM[2] === 'KM' ? 1000 : 1);
+  } else {
+    assumedWidth = true;
+  }
+  const toNm = m => m / 1852;
+  return {
+    center,
+    axisBrg,
+    lengthNm: toNm(lengthM),
+    widthNm:  toNm(widthM),
+    assumed: assumedLength || assumedWidth
+  };
+}
+
+// Build a rotated rectangle polygon for an axis zone
+function axisZonePoly(center, axisBrg, halfLenNm, halfWidNm) {
+  const R = 3440.065;
+  function dest(lat, lon, brg, distNm) {
+    const d = distNm / R, b = brg * Math.PI / 180;
+    const f1 = lat * Math.PI / 180, l1 = lon * Math.PI / 180;
+    const f2 = Math.asin(Math.sin(f1)*Math.cos(d)+Math.cos(f1)*Math.sin(d)*Math.cos(b));
+    const l2 = l1 + Math.atan2(Math.sin(b)*Math.sin(d)*Math.cos(f1), Math.cos(d)-Math.sin(f1)*Math.sin(f2));
+    return [f2*180/Math.PI, l2*180/Math.PI];
+  }
+  const perpBrg = (axisBrg + 90) % 360;
+  const perpBrgBack = (axisBrg + 270) % 360;
+  // 4 corners: front-right, front-left, back-left, back-right
+  const fwd = axisBrg, bwd = (axisBrg + 180) % 360;
+  // Move to front, then offset perpendicular
+  const front = dest(center.lat, center.lon, fwd, halfLenNm);
+  const back  = dest(center.lat, center.lon, bwd, halfLenNm);
+  const corners = [
+    dest(front[0], front[1], perpBrg,     halfWidNm),
+    dest(front[0], front[1], perpBrgBack, halfWidNm),
+    dest(back[0],  back[1],  perpBrgBack, halfWidNm),
+    dest(back[0],  back[1],  perpBrg,     halfWidNm),
+  ];
+  return corners.filter(p => isFinite(p[0]) && isFinite(p[1]));
+}
+
+// Cable car / linear obstacle: has 2+ named PSN coordinates + ORIENTATION or LENGTH
+function isCableCarZone(n) {
+  const e = (n.iteme || '').toUpperCase();
+  if (!/\b(CABLE CAR|CABLEWAY|TELEFERIQUE|TELEPHERIQUE|CABLE|TELESIEGE|TELECABINE)\b/.test(e)) return false;
+  // Need at least 2 coordinates
+  const pts = parseMultiCoord(n.iteme || '');
+  return pts.length >= 2;
+}
+// Parse cable car: returns array of [lat,lon] points (the cable path)
+function parseCableCar(n) {
+  return parseMultiCoord(n.iteme || '');
+}
+
+// ── Circle zone (PJE/UAV/restricted area defined by centre PSN + radius) ──────
+// Matches patterns like:
+//   PSN: 460553N0062021E RADIUS 2000M
+//   1.1NM RADIUS CIRCLE AROUND PSN: 460553N0062021E
+//   CIRCLE OF 3NM RADIUS ... PSN 460622.5N 0045103.6E
+//   PSN: 460450.1N 0061455E RADIUS 2000M
+function isCircleZone(n) {
+  if (isObstacle(n) || isAxisZone(n) || isCableCarZone(n)) return false;
+  return parseCircleZone(n) !== null;
+}
+
+function parseCircleZone(n) {
+  const raw = (n.iteme || '').replace(/\n/g, ' ').replace(/\s+/g, ' ');
+  const e = raw.toUpperCase();
+  let radiusM = null;
+  const nmMatch = e.match(/(\d+(?:\.\d+)?)\s*NM\b/);
+  if (nmMatch) radiusM = parseFloat(nmMatch[1]) * 1852;
+  if (!radiusM) {
+    const rM = e.match(/RADIUS\s+(\d+(?:\.\d+)?)\s*(KM|M)\b/);
+    if (rM) radiusM = parseFloat(rM[1]) * (rM[2] === 'KM' ? 1000 : 1);
+  }
+  if (!radiusM) {
+    const rM2 = e.match(/(\d+(?:\.\d+)?)\s*(KM|M)\b/);
+    if (rM2 && e.includes('RADIUS')) radiusM = parseFloat(rM2[1]) * (rM2[2] === 'KM' ? 1000 : 1);
+  }
+  if (!radiusM || radiusM < 50 || radiusM > 300000) return null;
+  const centre = parseSingleCoord(raw);
+  if (!centre) return null;
+  return { centre, radiusM };
+}
+
+// ── PJE zone (parachute jumping / drop zone — point only, default 10NM radius) ─
+const PJE_DEFAULT_RADIUS_M = 5 * 1852; // 5NM, no stated radius
+
+function isPjeZone(n) {
+  if (isObstacle(n) || isAxisZone(n) || isCableCarZone(n) || isCircleZone(n)) return false;
+  const e = (n.iteme || '').toUpperCase();
+  if (!/\bPJE\b/.test(e)) return false;
+  return parseSingleCoord(n.iteme || '') !== null;
+}
+
+function parsePjeZone(n) {
+  const centre = parseSingleCoord(n.iteme || '');
+  if (!centre) return null;
+  return { centre, radiusM: PJE_DEFAULT_RADIUS_M };
+}
+
+// ── Arc polygon zone (mixed straight segments + circular arcs) ───────────────
+// Pattern: list of coordinates with interspersed arc definitions like:
+//   0.8NM RADIUS CLOCKWISE ARCUS CENTRED ON 490801N 0042112E
+function isArcPolygon(n) {
+  if (isObstacle(n) || isCircleZone(n)) return false;
+  const e = (n.iteme || '').replace(/\n/g,' ').toUpperCase();
+  const hasArc = /\b(RADIUS|ARC|ARCUS)\b/.test(e) && /\b(CENTRED|CENTERED|CENTRE)\b/.test(e);
+  if (!hasArc) return false;
+  return parseMultiCoord(n.iteme || '').length >= 2;
+}
+
+function parseArcPolygonPoints(text) {
+  const raw = text.replace(/\n/g, ' ').replace(/\s+/g, ' ');
+  const e = raw.toUpperCase();
+
+  // Extract arc radius
+  const nmM = e.match(/(\d+(?:\.\d+)?)\s*NM\b/);
+  const radiusM = nmM ? parseFloat(nmM[1]) * 1852 : null;
+
+  // Find arc centre coords — preceded by CENTRED ON / CENTERED ON / CENTRE
+  // Pattern: "... CENTRED ON 490801N 0042112E ..."
+  const arcCentres = new Set();
+  const centreRe = /(?:CENTRED?\s+ON|CENTRE)\s+(\d{6}\.?\d*\s*[NS]\s*\d{5,7}\.?\d*\s*[EW])/g;
+  let cm;
+  while ((cm = centreRe.exec(e)) !== null) {
+    const c = parseSingleCoord(cm[1]);
+    if (c) arcCentres.add(c.lat.toFixed(5) + ',' + c.lon.toFixed(5));
+  }
+
+  // All coords in text
+  const allCoords = parseMultiCoord(raw);
+  if (!allCoords || allCoords.length < 2) return null;
+
+  // Split into polygon boundary points and arc centres
+  const polyCoords = allCoords.filter(c =>
+    !arcCentres.has(c.lat.toFixed(5) + ',' + c.lon.toFixed(5))
+  );
+  const centreCoords = allCoords.filter(c =>
+    arcCentres.has(c.lat.toFixed(5) + ',' + c.lon.toFixed(5))
+  );
+
+  return {
+    coords: polyCoords.length >= 2 ? polyCoords : allCoords,
+    centreCoords,
+    radiusM
+  };
+}
+
+// Extract named polygon groups from ZRT/ZDT style NOTAMs
+// Returns array of {name, pts} where pts is [[lat,lon],...]
+function extractPolygons(text) {
+  const result = [];
+
+  function dedup(pts) {
+    const seen = new Set();
+    return pts.filter(p => {
+      const k = p[0].toFixed(4) + ',' + p[1].toFixed(4);
+      if (seen.has(k)) return false; seen.add(k); return true;
+    });
+  }
+  function parsePoly(chunk) {
+    return dedup(parseCommaCoords(chunk).concat(parseMultiCoord(chunk)));
+  }
+
+  // Strategy 1: PART. N-FLaaa UNTIL FLbbb (F212 sector style)
+  const partRe = /PART\.?\s*\d+\s*[-–]\s*FL\d+\s+UNTIL\s+FL\d+/gi;
+  const partMatches = [];
+  let pm;
+  while ((pm = partRe.exec(text)) !== null) {
+    partMatches.push({ name: pm[0].trim(), start: pm.index + pm[0].length });
+  }
+  if (partMatches.length >= 2) {
+    for (let i = 0; i < partMatches.length; i++) {
+      const sec = partMatches[i];
+      const end = i + 1 < partMatches.length ? partMatches[i+1].start - partMatches[i+1].name.length - 5 : text.length;
+      const pts = parsePoly(text.slice(sec.start, Math.max(sec.start + 20, end)));
+      if (pts.length >= 3) result.push({ name: sec.name, pts });
+    }
+    if (result.length > 0) return result;
+  }
+
+  // Strategy 2: Named ZRT/ZDT/FBZ sections
+  const zrtRe = /\b((?:ZRT|ZDT|FBZ)\s+[A-Z][A-Z0-9 ]{1,30}?)\s*\n/g;
+  const namedSecs = [];
+  let zm;
+  while ((zm = zrtRe.exec(text)) !== null) {
+    namedSecs.push({ name: zm[1].trim(), start: zm.index + zm[0].length });
+  }
+  if (namedSecs.length > 0) {
+    for (let i = 0; i < namedSecs.length; i++) {
+      const sec = namedSecs[i];
+      const end = i + 1 < namedSecs.length ? namedSecs[i+1].start : text.length;
+      const pts = parsePoly(text.slice(sec.start, end));
+      if (pts.length >= 3) result.push({ name: sec.name, pts });
+    }
+    if (result.length > 0) return result;
+  }
+
+  // Strategy 2b: ATC sector format "XXXX SECTOR : READ '...'"
+  const sectorRe2 = /([A-Z]{2,}(?:\s+[A-Z]{2,}[A-Z0-9]*){1,4})\s+SECTOR\s*:\s*READ\s*'/gi;
+  const sectorMatches = [];
+  let sm;
+  while ((sm = sectorRe2.exec(text)) !== null) {
+    sectorMatches.push({ name: sm[1].trim(), start: sm.index + sm[0].length });
+  }
+  if (sectorMatches.length > 0) {
+    for (let i = 0; i < sectorMatches.length; i++) {
+      const sec = sectorMatches[i];
+      const end = i + 1 < sectorMatches.length ? sectorMatches[i+1].start - 30 : text.length;
+      const chunk = text.slice(sec.start, end);
+      // Extract coords from within the quoted block
+      const quoted = chunk.match(/^([^']*)'?/);
+      const pts = parsePoly(quoted ? quoted[1] : chunk);
+      if (pts.length >= 3) result.push({ name: sec.name, pts });
+    }
+    if (result.length > 0) return result;
+  }
+
+  // Strategy 3: Dash-separator blocks
+  const dashBlocks = text.split(/[-–]{15,}/);
+  if (dashBlocks.length > 1) {
+    for (const block of dashBlocks) {
+      const pts = parsePoly(block);
+      if (pts.length >= 3) result.push({ name: '', pts });
+    }
+    if (result.length > 0) return result;
+  }
+
+  // Fallback: all coords as one polygon
+  const pts = parsePoly(text);
+  if (pts.length >= 3) result.push({ name: '', pts });
+  return result;
+}
+
+// Comma-separated coordinate format: DDDDNN,DDDDDDD[EW] (like F212/26)
+// e.g. 470240N,0001500W
+function parseCommaCoords(text) {
+  // Fix line-wrap artifacts: numbers split across lines
+  let t = text;
+  // "4\n55300N" → "455300N"  (digit at EOL continues on next line)
+  t = t.replace(/(\d)[ \t]*\n[ \t]*(\d)/g, '$1$2');
+  // "-4 55300N," → "-455300N,"  (partial number after hyphen with space)
+  t = t.replace(/-(\d{1,2}) +(\d{3,6}[NS,EW])/g, '-$1$2');
+  const pts = [];
+  const re = /(\d{2})(\d{2})(\d{2})([NS]),\s*0?(\d{2,3})(\d{2})(\d{2})([EW])/g;
+  let m;
+  while ((m = re.exec(t)) !== null) {
+    let lat = parseInt(m[1]) + parseInt(m[2])/60 + parseInt(m[3])/3600;
+    if (m[4] === 'S') lat = -lat;
+    let lon = parseInt(m[5]) + parseInt(m[6])/60 + parseInt(m[7])/3600;
+    if (m[8] === 'W') lon = -lon;
+    if (isFinite(lat) && isFinite(lon) && Math.abs(lat) > 0.001) pts.push([lat, lon]);
+  }
+  return pts;
+}
+
+// Detect NOTAM with inline polygon coords (ZRT, ZDT, sector modifications)
+function isInlinePolygon(n) {
+  const e = (n.iteme || '').toUpperCase();
+  // Must have a zone-type keyword — prevents obstacle/windfarm NOTAMs from matching
+  const hasZoneKeyword = /\b(ZRT|ZDT|FBZ|TSA|TRA|PROHIBITED|RESTRICTED|DANGER|SEGREGATED|UAS|SECTOR|PART\.?\s*\d+\s*[-–]\s*FL)/.test(e);
+  if (!hasZoneKeyword) return false;
+  // Must not be a pure procedure-change NOTAM (minima, approaches)
+  if (isProcedureChange(n)) return false;
+  // Must have at least 3 coordinate pairs (spaced or comma format)
+  const nCoords = parseMultiCoord(n.iteme || '').length + parseCommaCoords(n.iteme || '').length;
+  return nCoords >= 3;
+}
+
+function isProcedureChange(n) {
+  const e = (n.iteme || '').toUpperCase();
+  return /\b(OCA|OCH|DA\b|DH\b|MDA|MDH|MINIMA|MNM OPS|LPV|LNAV|VNAV|APCH|IAP)\b/.test(e) &&
+    !/\b(TSA|TRA|PROHIBITED|RESTRICTED|DANGER|SEGREGATED|UAS)\b/.test(e);
+}
+function isMappable(n) {
+  if (isProcedureChange(n)) return false;
+  return isObstacle(n) || isArcPolygon(n) || isZoneNotam(n) || isAxisZone(n) || isCableCarZone(n) || isInlinePolygon(n) || isCircleZone(n) || isPjeZone(n);
+}
+// Parse a multi-point obstacle NOTAM into individual {lat, lon, hgt, elev}
+// points, by splitting the text on each PSN occurrence and extracting the
+// HGT/ELEV that appears in that point's own segment (between this PSN and
+// the next one, or end of text). This correctly handles NOTAMs listing
+// several distinct obstacles (e.g. "TREES NR 1".."TREES NR 4") each with
+// their own height/elevation, rather than applying one shared value to all.
+function parsePerPointObstData(text) {
+  const upper = text.toUpperCase();
+  // Fix line-wrap artifacts the same way parseMultiCoord does, but keep
+  // a parallel un-fixed version isn't needed since we re-run coord regex
+  // per segment on the same normalized text.
+  const fixed = upper.replace(/(\d)[ \t]*\n[ \t]*(\d)/g, '$1$2');
+  // Find PSN label positions that are genuine coordinate declarations --
+  // i.e. actually followed by a coordinate within a short distance. This
+  // excludes plain-English references like "...RADIUS AROUND PSN -" which
+  // refer back to a position already given, not a new point. Without this
+  // check, such references would wrongly split a single point's HGT/ELEV
+  // away from its own coordinate, losing the data entirely.
+  const psnPositions = [];
+  const psnRe = /\bPSN\b/g;
+  let pm;
+  while ((pm = psnRe.exec(fixed)) !== null) {
+    const after = fixed.slice(pm.index, pm.index + 40);
+    if (new RegExp(MCOORD_RE.source).test(after)) psnPositions.push(pm.index);
+  }
+  if (psnPositions.length < 2) return null; // not a multi-point NOTAM, caller falls back
+
+  const points = [];
+  for (let i = 0; i < psnPositions.length; i++) {
+    const segStart = psnPositions[i];
+    const segEnd = (i + 1 < psnPositions.length) ? psnPositions[i + 1] : fixed.length;
+    const segment = fixed.slice(segStart, segEnd);
+    const coordM = new RegExp(MCOORD_RE.source).exec(segment);
+    if (!coordM) continue;
+    let lat = parseFloat(coordM[1]) + parseFloat(coordM[2]) / 60 + parseFloat(coordM[3]) / 3600;
+    if (coordM[4] === 'S') lat = -lat;
+    let lon = parseFloat(coordM[5]) + parseFloat(coordM[6]) / 60 + parseFloat(coordM[7]) / 3600;
+    if (coordM[8] === 'W') lon = -lon;
+    if (Math.abs(lat) < 0.001 && Math.abs(lon) < 0.001) continue;
+    if (lat < -90 || lat > 90 || lon < -180 || lon > 180) continue;
+    points.push({ lat, lon, hgt: parseHgt(segment), elev: parseElev(segment) });
+  }
+  return points.length > 0 ? points : null;
+}
+
+function obstData(n) {
+  if (!isObstacle(n)) return null;
+  const text = n.iteme || '';
+  const perPoint = parsePerPointObstData(text);
+  if (perPoint) {
+    // Multi-point NOTAM: each point has its own hgt/elev.
+    // Keep top-level hgt/elev as the first point's values for any code that
+    // still reads the single-value fields (e.g. the "big" threshold check
+    // uses the max across all points so the marker size reflects the
+    // tallest obstacle in the group).
+    const allCoords = perPoint.map(p => [p.lat, p.lon]);
+    const maxHgt = perPoint.reduce((m, p) => (p.hgt != null && (m == null || p.hgt > m)) ? p.hgt : m, null);
+    return { hgt: perPoint[0].hgt, elev: perPoint[0].elev, coords: { lat: perPoint[0].lat, lon: perPoint[0].lon }, allCoords, perPoint, maxHgt };
+  }
+  const hgt  = parseHgt((text || '').toUpperCase());
+  const elev = parseElev((text || '').toUpperCase());
+  const allCoords = parseMultiCoord(text);
+  const coords = allCoords.length > 0 ? { lat: allCoords[0][0], lon: allCoords[0][1] } : parseSingleCoord(text);
+  return { hgt, elev, coords, allCoords };
+}
+function shouldHideObst(n) {
+  if (!document.getElementById('filt-obst')?.checked) return false;
+  const d = obstData(n); if (!d) return false;
+  const thresh = parseInt(document.getElementById('obst-thresh')?.value) || 200;
+  const effectiveHgt = d.maxHgt != null ? d.maxHgt : d.hgt;
+  return effectiveHgt != null && effectiveHgt < thresh;
+}
+function isFullClosure(n) {
+  const e = (n.iteme || '').toUpperCase();
+  return /RWY[\s\w\/]+CLS[DE]D?/.test(e) || /RUNWAY\s+CLS[DE]D?/.test(e) ||
+    (/PAVED\s+RWY/.test(e) && /CLOS/.test(e)) ||
+    /\bAD\s+CLS[DE]D?\b/.test(e) || /AERODROME\s+CLS[DE]D?/.test(e);
+}
+
+// ── NOTAM colour ───────────────────────────────────────────────────────────
+const CLOSURE_RE = /\b(CLSD|CLOSED|U\/S|UNSERVICEABLE|NOT AVBL|NOT AVAILABLE|OUT OF SERVICE|PROHIBITED|SUSPENDED)\b/;
+const MINIMA_RE  = /\b(OCA|OCH|DA\b|DH\b|MDA|MDH|MINIMA|MNM OPS|INCREASED|MODIFIED|CHANGED|LNAV|LPV|VNAV|RNP|ILS|APCH|IAP|PROC)\b/;
+// Obstacle lighting U/S: mappable obstacle whose lighting is unserviceable
+const OBST_LGT_RE = /\b(LGT|LIGHTS?|LIGHTING|OBST\s+LGT|OBSTACLE\s+LGT)\b.*\b(U\/S|UNSERVICEABLE|OUT\s+OF\s+SERVICE|NOT\s+AVBL|NOT\s+AVAILABLE|INOP|INOPERATIVE|EXTD|EXTINGUISHED|UNLIT)\b|\b(U\/S|UNSERVICEABLE|INOP|INOPERATIVE|EXTINGUISHED|UNLIT)\b.*\b(LGT|LIGHTS?|LIGHTING)\b/;
+function isObstLgt(n) { return isMappable(n) && OBST_LGT_RE.test((n.iteme || '').toUpperCase()); }
+function notamCC(n) {
+  const e = (n.iteme || '').toUpperCase();
+  if (isObstLgt(n))       return 'cl-obst-lgt'; // obstacle LGT U/S — checked first (contains U/S)
+  if (CLOSURE_RE.test(e)) return 'cl-closure';
+  if (MINIMA_RE.test(e))  return 'cl-minima';
+  if (isMappable(n))      return 'cl-mapped';    // pure obstacle — green badge
+  return 'cl-normal';
+}
+
+// ── Display sort key within each airfield block ──────────────────────────────
+// 0 = full-closure (red card), 1 = cl-closure (red ref), 2 = cl-minima (blue),
+// 3 = cl-normal / cl-obst-lgt (normal), 4 = cl-mapped (green)
+function notamDisplaySortKey(n) {
+  if (isFullClosure(n))         return 0;  // red card
+  const cc = notamCC(n);
+  if (cc === 'cl-closure')      return 1;  // red reference
+  if (cc === 'cl-minima')       return 2;  // blue reference
+  if (cc === 'cl-normal')       return 3;  // normal
+  if (cc === 'cl-obst-lgt')     return 4;  // white obstacle LGT badge
+  if (cc === 'cl-mapped')       return 5;  // green reference — last
+  return 3;                                // fallback
+}
+
+// ── Sort key: normal first, AIP SUP second, green (mapped) last ─────────────
+function notamSortKey(n) {
+  const cc = notamCC(n);
+  if (cc === 'cl-mapped')   return 3;                                 // pure obstacle — last
+  if (cc === 'cl-obst-lgt') return 2;                                 // obstacle LGT U/S — third
+  const e = (n.iteme || '').toUpperCase();
+  if (/TRIGGER NOTAM/i.test(e) && /AIP\s*SUP/i.test(e)) return 1;  // AIP SUP — second
+  return 0;                                                           // normal — first
+}
+
+// ── Dedup ──────────────────────────────────────────────────────────────────
+function notamKey(n) {
+  const loc = ((n.itema && n.itema[0]) || '').substring(0, 2).toUpperCase();
+  if (n.number) return loc + '|' + (n.series || '') + n.number + '/' + (n.year || '');
+  return loc + '|C:' + (n.iteme || '').slice(0, 80).trim();
+}
+function notamAnchor(k) { return 'g_' + k.replace(/[^a-zA-Z0-9]/g, '_'); }
+// Briefing time window — set by renderAll, read by fullCard
+let _briefStart = 0, _briefEnd = 0;
+
+function buildGlossary(allApts) {
+  const seenBy = {}, byKey = {};
+  for (const [icao, ad] of Object.entries(allApts)) {
+    for (const n of (ad.notams || [])) {
+      // Never put filtered NOTAMs in glossary
+      if (isChecklist(n)) continue;
+      if (shouldHideByRules(n)) continue;
+      if (shouldHideByAltitude(n)) continue;
+      const k = notamKey(n);
+      if (!byKey[k]) { byKey[k] = n; seenBy[k] = []; }
+      if (!seenBy[k].includes(icao)) seenBy[k].push(icao);
+    }
+  }
+  return { seenBy, byKey, glossKeys: new Set(Object.keys(seenBy).filter(k => seenBy[k].length > 1)) };
+}
+
+// ── Standalone mode — no proxy ─────────────────────────────────────────────
+let wpts = [], wc = 0, extras = [], ec = 0;
+let _notamLookup = {}; // notamId -> n, populated during render for map badge clicks
+function gv(id) { return (document.getElementById(id)?.value || '').trim().toUpperCase(); }
+function updateBuf() {
+  const r = parseInt(document.getElementById('radnm')?.value) || 60;
+  const v = (document.getElementById('acft')?.value || '1,1').split(',');
+  if (document.getElementById('radinfo')) document.getElementById('radinfo').textContent = '≈' + Math.round(r / (parseInt(v[1]) / parseInt(v[0]))) + ' min';
+}
+
+// ── API key persistence ─────────────────────────────────────────────────────
+function togglePassVis() {
+  const el = document.getElementById('ar-pass') || {};
+  el.type = el.type === 'password' ? 'text' : 'password';
+}
+
+// ── Airport DB (OurAirports CSV → IndexedDB cache) ──────────────────────────
+// Treat any private LAN IP (192.168.x.x, 10.x.x.x, 172.16-31.x.x) the same as
+// localhost/127.0.0.1 — these are all "served by our own local server" cases,
+// just accessed from another device (e.g. iPad) over WiFi.
+const _isPrivateLan = /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.)/.test(location.hostname);
+// Use local server proxy for airports CSV (avoids CORS on file:// and mobile)
+const AIRPORTS_URL = (location.protocol === 'file:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1' || _isPrivateLan)
+  ? `${location.protocol === 'file:' ? 'http://localhost:8766' : location.origin}/airports-csv`
+  : 'https://davidmegginson.github.io/ourairports-data/airports.csv';
+const INCLUDE_TYPES = new Set(['large_airport','medium_airport','small_airport']);
+const DB_NAME = 'notam_airports', DB_STORE = 'airports', DB_KEY = 'data', DB_MAX_AGE = 7*24*3600*1000;
+let _airportDb = null; // icao → {lat,lon}
+
+function openIdb() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = e => e.target.result.createObjectStore(DB_STORE);
+    req.onsuccess = e => res(e.target.result);
+    req.onerror = () => rej(req.error);
+  });
+}
+async function idbGet(db, key) {
+  return new Promise((res, rej) => {
+    const tx = db.transaction(DB_STORE, 'readonly');
+    const r = tx.objectStore(DB_STORE).get(key);
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+async function idbPut(db, key, val) {
+  return new Promise((res, rej) => {
+    const tx = db.transaction(DB_STORE, 'readwrite');
+    const r = tx.objectStore(DB_STORE).put(val, key);
+    r.onsuccess = () => res();
+    r.onerror = () => rej(r.error);
+  });
+}
+
+function parseCsvRow(line) {
+  // Proper RFC-4180 CSV parser — handles quoted fields with commas inside
+  const cols = [];
+  let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (inQ) {
+      if (c === '"' && line[i+1] === '"') { cur += '"'; i++; }
+      else if (c === '"') inQ = false;
+      else cur += c;
+    } else {
+      if (c === '"') inQ = true;
+      else if (c === ',') { cols.push(cur); cur = ''; }
+      else cur += c;
+    }
+  }
+  cols.push(cur);
+  return cols;
+}
+
+function parseAirportsCsv(csv) {
+  const lines = csv.split('\n');
+  const hdr = parseCsvRow(lines[0]);
+  const idx = f => hdr.indexOf(f);
+  const iIcao = idx('gps_code'), iIdent = idx('ident'), iType = idx('type');
+  const iLat = idx('latitude_deg'), iLon = idx('longitude_deg'), iName = idx('name');
+  const db = {};
+  for (let i = 1; i < lines.length; i++) {
+    if (!lines[i].trim()) continue;
+    const cols = parseCsvRow(lines[i]);
+    if (cols.length < 5) continue;
+    const icao = (cols[iIcao] || cols[iIdent] || '').trim().toUpperCase();
+    const type = (cols[iType] || '').trim();
+    if (!icao || icao.length !== 4 || !INCLUDE_TYPES.has(type)) continue;
+    const lat = parseFloat(cols[iLat]);
+    const lon = parseFloat(cols[iLon]);
+    if (isNaN(lat) || isNaN(lon)) continue;
+    db[icao] = { lat, lon, name: (cols[iName] || '').trim() };
+  }
+  return db;
+}
+
+async function loadAirportDb(forceReload = false) {
+  const dot = document.getElementById('dbdot'), st = document.getElementById('db-count'); if (!dot || !st) return;
+  dot.style.background = '#F57F17';
+  st.textContent = 'loading…';
+  try {
+    const idb = await openIdb();
+    if (!forceReload) {
+      const cached = await idbGet(idb, DB_KEY);
+      if (cached && cached.ts && (Date.now() - cached.ts) < DB_MAX_AGE) {
+        _airportDb = cached.db;
+        dot.style.background = '#2E7D32';
+        st.textContent = Object.keys(_airportDb).length.toLocaleString() + ' airports (cached)';
+        return;
+      }
+    }
+    st.textContent = 'downloading…';
+    const resp = await fetch(AIRPORTS_URL);
+    const csv = await resp.text();
+    _airportDb = parseAirportsCsv(csv);
+    await idbPut(idb, DB_KEY, { ts: Date.now(), db: _airportDb });
+    dot.style.background = '#2E7D32';
+    st.textContent = Object.keys(_airportDb).length.toLocaleString() + ' airports ✓';
+  } catch(e) {
+    dot.style.background = '#C62828';
+    st.textContent = 'failed — ' + e.message;
+  }
+}
+
+// Lightweight variant for pages without the #dbdot/#db-count status UI (the
+// standalone fullscreen /map page). Loads from the IndexedDB cache only --
+// never downloads -- since the main page is responsible for keeping that
+// cache fresh. If nothing is cached yet, the all-airports overlay simply
+// has nothing to show until the main page has loaded it at least once.
+async function loadAirportDbSilent() {
+  try {
+    const idb = await openIdb();
+    const cached = await idbGet(idb, DB_KEY);
+    if (cached && cached.db) _airportDb = cached.db;
+  } catch(e) { /* no cache yet -- overlay will just show nothing */ }
+}
+
+// ── Geo helpers (same logic as proxy) ──────────────────────────────────────
+function haversineNm(lat1, lon1, lat2, lon2) {
+  const R = 3440.065;
+  const p1 = lat1*Math.PI/180, p2 = lat2*Math.PI/180;
+  const dp = (lat2-lat1)*Math.PI/180, dl = (lon2-lon1)*Math.PI/180;
+  const a = Math.sin(dp/2)**2 + Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2;
+  return R * 2 * Math.asin(Math.sqrt(a));
+}
+function getCoords(icao) {
+  return _airportDb ? (_airportDb[icao.toUpperCase()] || null) : null;
+}
+function airportsWithinRadius(lat, lon, radiusNm) {
+  if (!_airportDb) return [];
+  return Object.entries(_airportDb)
+    .map(([icao, a]) => [haversineNm(lat, lon, a.lat, a.lon), icao])
+    .filter(([d]) => d <= radiusNm)
+    .sort((a, b) => a[0] - b[0])
+    .map(([, icao]) => icao);
+}
+function airportsAlongLeg(lat1, lon1, lat2, lon2, radiusNm) {
+  const totalNm = haversineNm(lat1, lon1, lat2, lon2);
+  const step = Math.min(Math.max(radiusNm * 0.75, 5), radiusNm);
+  const nSteps = Math.max(Math.floor(totalNm / step), 1) + 1;
+  const found = new Set();
+  for (let i = 0; i <= nSteps; i++) {
+    const t = i / nSteps;
+    const lat = lat1 + t*(lat2-lat1), lon = lon1 + t*(lon2-lon1);
+    airportsWithinRadius(lat, lon, radiusNm).forEach(x => found.add(x));
+  }
+  return [...found];
+}
+
+// ── autorouter.aero OAuth2 + NOTAM fetch (direct from browser) ────────────
+// Credentials — same as the proxy. autorouter.aero sets Access-Control-Allow-Origin: *
+// so direct browser calls work fine without a proxy.
+// AR_BASE points to the local server which proxies to autorouter.aero (handles CORS+SSL)
+// Falls back to direct if already running from http:// with CORS support
+// AR_BASE: when served locally, route via /ar proxy (no v1.0 suffix — server adds it)
+// When served from a real https:// host, call autorouter directly
+const _localOrigin = location.protocol === 'file:' ? 'http://localhost:8766' : location.origin;
+const _isLocal = location.protocol === 'file:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1' || _isPrivateLan;
+const AR_BASE = _isLocal ? _localOrigin + '/ar' : 'https://api.autorouter.aero/v1.0';
+// Credentials are stored in the page (same as the proxy script).
+// Users can override via the key fields in the UI.
+let _arToken = null, _arTokenExpiry = 0;
+
+function getArEmail()    { return (document.getElementById('ar-email')?.value || '').trim() || localStorage.getItem('notam_ar_email') || ''; }
+function getArPassword() { return (document.getElementById('ar-pass').value  || '').trim(); }
+function saveArCreds()   {
+  localStorage.setItem('notam_ar_email', getArEmail());
+  localStorage.setItem('notam_ar_pass',  getArPassword());
+}
+function loadArCreds() {
+  const e = localStorage.getItem('notam_ar_email') || '';
+  const p = localStorage.getItem('notam_ar_pass')  || '';
+  // Discard stored email if it looks corrupt (missing @)
+  if (e && e.includes('@') && document.getElementById('ar-email')) document.getElementById('ar-email').value = e;
+  else if (e) localStorage.removeItem('notam_ar_email'); // purge corrupt entry
+  if (p && document.getElementById('ar-pass')) document.getElementById('ar-pass').value = p;
+}
+
+async function getArToken(_retry = 0) {
+  if (_arToken && Date.now() < _arTokenExpiry - 60000) return _arToken;
+  const body = new URLSearchParams({
+    grant_type: 'client_credentials',
+    client_id: getArEmail(),
+    client_secret: getArPassword()
+  });
+  let r;
+  try {
+    r = await fetch(AR_BASE + '/oauth2/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body
+    });
+  } catch(netErr) {
+    // Network failure (DNS, timeout) — retry up to 3 times with increasing delay
+    if (_retry < 3) {
+      await new Promise(res => setTimeout(res, 2000 * (_retry + 1)));
+      return getArToken(_retry + 1);
+    }
+    throw new Error('Auth failed: ' + netErr.message);
+  }
+  if (!r.ok) {
+    if (_retry < 2 && [502, 503, 504].includes(r.status)) {
+      await new Promise(res => setTimeout(res, 2000 * (_retry + 1)));
+      return getArToken(_retry + 1);
+    }
+    throw new Error('Auth failed ' + r.status + ': ' + (await r.text()).slice(0,200));
+  }
+  const d = await r.json();
+  if (!d.access_token) throw new Error('No access_token in auth response');
+  _arToken = d.access_token;
+  _arTokenExpiry = Date.now() + (parseInt(d.expires_in) || 3600) * 1000;
+  return _arToken;
+}
+
+async function arGet(path, _retry = 0) {
+  const tok = await getArToken();
+  let r;
+  try {
+    r = await fetch(AR_BASE + path, { headers: { Authorization: 'Bearer ' + tok } });
+  } catch(netErr) {
+    if (_retry < 2) {
+      await new Promise(res => setTimeout(res, 2000 * (_retry + 1)));
+      return arGet(path, _retry + 1);
+    }
+    throw new Error('autorouter network error: ' + netErr.message);
+  }
+  if (!r.ok) {
+    if (_retry < 2 && [502, 503, 504].includes(r.status)) {
+      await new Promise(res => setTimeout(res, 2000 * (_retry + 1)));
+      return arGet(path, _retry + 1);
+    }
+    throw new Error('autorouter ' + r.status + ' on ' + path);
+  }
+  return r.json();
+}
+
+async function fetchNotamsForIcaos(icaoList, startEpoch, endEpoch, limit = 100) {
+  const encoded = encodeURIComponent(JSON.stringify(icaoList));
+  const path = '/notam?itemas=' + encoded + '&limit=' + limit +
+    '&startvalidity=' + startEpoch + '&endvalidity=' + endEpoch + '&offset=0';
+  const raw = await arGet(path);
+  // Initialise all requested ICAOs
+  const results = {};
+  icaoList.forEach(icao => { results[icao] = { notams: [], total: 0, error: null }; });
+  // Distribute rows: a NOTAM belongs to the first itema that is in our request list
+  (raw.rows || []).forEach(n => {
+    const candidates = (n.itema || []).map(x => x.toUpperCase());
+    const icao = candidates.find(x => results[x]) || candidates[0] || '';
+    if (results[icao]) { results[icao].notams.push(n); results[icao].total++; }
+  });
+  return results;
+}
+
+// FIX: date init is now a named function called AFTER loadDefaults() at the
+// bottom, so loadDefaults() can never race-overwrite it.
+// FIX: old code zeroed minutes BEFORE adding 30min — wrong near the hour
+// (e.g. at 23:50 UTC: setMinutes(0)→23:00, +30min→23:30 instead of 00:20).
+// Correct: add 30min first, then strip seconds.
+// ── Date/time lock ────────────────────────────────────────────────────────────
+function _dtLocked() {
+  return document.getElementById('dt-lock-btn')?.dataset.locked === '1';
+}
+function _setDateTimeLock(locked) {
+  const btn = document.getElementById('dt-lock-btn');
+  if (!btn) return;
+  btn.dataset.locked     = locked ? '1' : '0';
+  btn.textContent        = locked ? '🔒 Locked' : '🔓 Unlocked';
+  btn.style.background   = locked ? '#fff9c4' : '#f5f5f5';
+  btn.style.borderColor  = locked ? '#f9a825' : '#ccc';
+  btn.style.color        = locked ? '#5d4037' : '';
+}
+function toggleDateTimeLock() {
+  const nowLocked = !_dtLocked();
+  _setDateTimeLock(nowLocked);
+  if (nowLocked) {
+    _saveDateTimePrefs();
+  } else {
+    initDepDateTime();    // revert to now+30 min immediately on unlock
+    _saveDateTimePrefs(); // persist unlocked state to prefs
+  }
+}
+async function _saveDateTimePrefs() {
+  const email = getArEmail();
+  if (!email) return;
+  const locked = _dtLocked();
+  const prefs = {
+    pdf_email: (document.getElementById('email-addr')?.value || '').trim(),
+    dt_locked: locked,
+    dep_date:  locked ? document.getElementById('dep-date').value : '',
+    dep_time:  locked ? document.getElementById('dep-time').value : '',
+  };
+  await fetch('/prefs/save', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ email, prefs })
+  }).catch(() => {});
+}
+async function _loadDateTimePrefs() {
+  const email = getArEmail();
+  if (!email) return;
+  try {
+    const r    = await fetch('/prefs/load', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ email })
+    });
+    const data = await r.json();
+    if (data.dt_locked) {
+      _setDateTimeLock(true);
+      if (data.dep_date) document.getElementById('dep-date').value = data.dep_date;
+      if (data.dep_time) document.getElementById('dep-time').value = data.dep_time;
+    }
+  } catch(e) {}
+}
+// Also save date/time to prefs whenever they change while locked
+function _onDateTimeInput() {
+  if (_dtLocked()) _saveDateTimePrefs();
+}
+
+function initDepDateTime() {
+  if (_dtLocked()) return; // locked — leave values as restored from prefs
+  const t = new Date(Math.floor((Date.now() + 30 * 60 * 1000) / 60000) * 60000);
+  const yyyy = t.getUTCFullYear();
+  const mm   = String(t.getUTCMonth() + 1).padStart(2, '0');
+  const dd   = String(t.getUTCDate()).padStart(2, '0');
+  const hh   = String(t.getUTCHours()).padStart(2, '0');
+  const mi   = String(t.getUTCMinutes()).padStart(2, '0');
+  document.getElementById('dep-date').value = yyyy + '-' + mm + '-' + dd;
+  document.getElementById('dep-time').value = hh + ':' + mi;
+}
+
+function addWpt(v = '') {
+  const id = 'w' + wc++; wpts.push(id);
+  const d = document.createElement('div'); d.className = 'wpt-chip'; d.id = id + 'r';
+  const wti = 30 + wpts.length - 1;
+  d.innerHTML = '<input type="text" id="' + id + '" maxlength="4" placeholder="ICAO" tabindex="' + wti + '" oninput="viz()" value="' + v + '"><button class="brm" tabindex="-1" onclick="rmWpt(\'' + id + '\')">×</button>';
+  document.getElementById('wpts').insertBefore(d, document.getElementById('wpts').lastChild);
+  document.querySelector('button.badd[onclick="addWpt()"]').tabIndex = 30 + wpts.length;
+  viz();
+}
+function rmWpt(id) {
+  wpts = wpts.filter(w => w !== id);
+  document.getElementById(id + 'r').remove();
+  document.querySelector('button.badd[onclick="addWpt()"]').tabIndex = 30 + wpts.length;
+  viz();
+}
+function addExtra(v = '') {
+  const id = 'e' + ec++; extras.push(id);
+  const d = document.createElement('div'); d.className = 'extra-chip'; d.id = id + 'r';
+  const eti = 80 + extras.length - 1;
+  d.innerHTML = '<input type="text" id="' + id + '" maxlength="4" placeholder="ICAO" tabindex="' + eti + '" oninput="viz()" value="' + v + '"><button class="brm" tabindex="-1" onclick="rmExtra(\'' + id + '\')">×</button>';
+  document.getElementById('extras').insertBefore(d, document.getElementById('extras').lastChild);
+  document.querySelector('button.badd[onclick="addExtra()"]').tabIndex = 80 + extras.length;
+  viz();
+}
+function rmExtra(id) {
+  extras = extras.filter(e => e !== id);
+  document.getElementById(id + 'r').remove();
+  document.querySelector('button.badd[onclick="addExtra()"]').tabIndex = 80 + extras.length;
+  viz();
+}
+
+// ── Snapshot / NOTAM diff ─────────────────────────────────────────────────
+
+// Save snapshot — only called on first fetch to establish baseline
+function _saveSnapshot(k, notams) {
+  if (!k.dep) return;
+  // If notams is null, load the current snapshot notams from memory
+  const snap = notams !== null ? notams : _snapshot;
+  fetch('/snapshot/save', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ ...k, notams: snap,
+      _waypoints: wpts.map(w => (document.getElementById(w)?.value || '').toUpperCase().trim()).filter(Boolean),
+      _tkof:   (document.getElementById('tkof')?.value  || '').toUpperCase().trim(),
+      _alt1:   (document.getElementById('alt1')?.value  || '').toUpperCase().trim(),
+      _alt2:   (document.getElementById('alt2')?.value  || '').toUpperCase().trim(),
+      _extras: extras.map(e => (document.getElementById(e)?.value || '').toUpperCase().trim()).filter(Boolean)
+    })
+  });
+}
+
+let _snapshot = {};
+let _snapLoaded = false;
+let _never = {};  // per-user never-show list: { notam_id: data }
+let _neverLoaded = false;
+let _neverHit = new Map(); // NOTAMs actually encountered and suppressed in current render
+
+function _routeVariant() {
+  const checked = document.querySelector('input[name="route-variant"]:checked');
+  return checked ? checked.value : 'Straight';
+}
+
+function _snapKey() {
+  const dep   = (document.getElementById('dep')?.value  || '').toUpperCase().trim();
+  const destRaw = (document.getElementById('dest')?.value || '').toUpperCase().trim();
+  const dest  = destRaw || dep;
+  const email = getArEmail(); // use reliable helper
+  const variant = _routeVariant();
+  return { email, dep, dest, variant };
+}
+function _notamId(n) {
+  // Include primary ICAO location to avoid collisions between countries with same ref
+  const loc = ((n.itema && n.itema[0]) || '').toUpperCase().trim();
+  return (loc ? loc + ':' : '') + (n.series || '') + (n.number || '') + '/' + (n.year || '');
+}
+async function loadSnapshot(restoreWaypoints = false) {
+  const k = _snapKey();
+  if (!k.dep) return;
+  try {
+    const r = await fetch('/snapshot/load', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(k)
+    });
+    const data = await r.json();
+    // Restore waypoints only when switching variant, not on fetch
+    // Always clear and rebuild — even if _waypoints is empty/absent (clears leftover entries)
+    if (restoreWaypoints) {
+      wpts.slice().forEach(id => rmWpt(id));
+      if (data && Array.isArray(data._waypoints)) {
+        data._waypoints.forEach(icao => addWpt(icao));
+      }
+      const setField = (id, val) => { const el = document.getElementById(id); if (el) el.value = val ?? ''; };
+      setField('tkof', data?._tkof);
+      setField('alt1', data?._alt1);
+      setField('alt2', data?._alt2);
+      extras.slice().forEach(id => rmExtra(id));
+      if (data && Array.isArray(data._extras)) {
+        data._extras.forEach(icao => addExtra(icao));
+      }
+    }
+    // NOTAMs are stored under data.notams (new format); fall back to flat dict (old format)
+    _snapshot   = (data && data.notams) ? data.notams : (data || {});
+    _snapLoaded = true;
+    const count = Object.keys(_snapshot).length;
+    const el = document.getElementById('snapshot-status');
+    const label = k.dep + (k.dest ? '→' + k.dest : '');
+    if (el) el.textContent = count > 0
+      ? '📸 Snapshot: ' + count + ' NOTAMs — ' + label
+      : '📸 No snapshot yet for ' + label;
+  } catch(e) { _snapshot = {}; _snapLoaded = false; }
+}
+// ── AI NOTAM summaries ──────────────────────────────────────────────────────
+let _aiEnabled    = false;
+let _summaryCache = {};   // key: icao+'|'+hash → summary text
+
+function _notamHash(notams) {
+  // Simple hash of NOTAM IDs for cache invalidation
+  return notams.map(n => (n.series||'') + (n.number||'') + '/' + (n.year||'')).sort().join(',');
+}
+
+async function initAI() {
+  try {
+    const r = await fetch('/ai/config');
+    const d = await r.json();
+    _aiEnabled = d.enabled;
+  } catch(e) { _aiEnabled = false; }
+  if (!_aiEnabled) _showAiKeyPrompt();
+}
+
+function _showAiKeyPrompt() {
+  const label = document.getElementById('ai-summary-label');
+  const controls = document.getElementById('ai-summary-controls');
+  if (!label || !controls) return;
+  label.title = 'Click to manage your Anthropic API key, paste your API key below and press enter to enable AI summary.';
+  controls.innerHTML = '<input id="ai-api-key" type="password" placeholder="sk-ant-..." '
+    + 'style="width:200px;font-size:11px" autocomplete="off" '
+    + 'onkeydown="if(event.key===\'Enter\')submitAiApiKey()">';
+}
+
+async function submitAiApiKey() {
+  const input = document.getElementById('ai-api-key');
+  const controls = document.getElementById('ai-summary-controls');
+  if (!input || !controls) return;
+  const key = input.value.trim();
+  if (!key) return;
+  input.disabled = true;
+  try {
+    const r = await fetch('/ai/save_key', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ api_key: key })
+    });
+    const d = await r.json();
+    if (d.status === 'ok') {
+      controls.innerHTML = '<span style="font-size:11px;color:#2e7d32">'
+        + 'config.py updated, restart the server to enable AI summaries</span>';
+    } else {
+      controls.innerHTML = '<span style="font-size:11px;color:#C62828">Failed: '
+        + escH(d.message || 'unknown error') + '</span>';
+    }
+  } catch(e) {
+    controls.innerHTML = '<span style="font-size:11px;color:#C62828">Failed: ' + escH(e.message) + '</span>';
+  }
+}
+
+async function generateSummaries(summaryOrder, allApts, roles) {
+  const aiLines = parseInt(document.getElementById('ai-lines')?.value || '2', 10);
+  const aiChars = parseInt(document.getElementById('ai-chars')?.value || '80', 10);
+  if (!_aiEnabled || aiLines === 0 || aiChars === 0) return {};
+
+  // Flight context — sent once, shared across all airport summaries
+  const depDate  = document.getElementById('dep-date')?.value || '';
+  const depTime  = document.getElementById('dep-time')?.value || '';
+  const maxDurEl = document.getElementById('max-dur');
+  const maxDurManual = (maxDurEl?.value || '').trim();
+  const maxDurAuto   = (maxDurEl?.placeholder || '').replace(/[()]/g, '');
+  const maxDur       = maxDurManual || maxDurAuto || '';
+  const maxDurIsAuto = !maxDurManual && !!maxDurAuto;
+  const acftCat = document.getElementById('acft-cat')?.value || 'A';
+  const rules   = document.getElementById('rules')?.value || 'IFR';
+  const eqLPV  = document.getElementById('eq-lpv')?.checked || false;
+  const eqLNV  = document.getElementById('eq-lnav-vnav')?.checked || false;
+  const eqLNAV = document.getElementById('eq-lnav')?.checked || false;
+  const equipment = [eqLPV && 'LPV', eqLNV && 'LNAV/VNAV', eqLNAV && 'LNAV'].filter(Boolean);
+
+  const results = {};
+  for (const icao of summaryOrder) {
+    const ad = allApts[icao];
+    if (!ad) continue;
+    // Get visible NOTAMs sorted by notamCC (same as display order)
+    const visibleNotams = (ad.notams || []).filter(n =>
+      !isChecklist(n) && !shouldHideByRules(n) && !shouldHideByAltitude(n) &&
+      !shouldHideEquipment(n) && !shouldHideObst(n) && !_never[_notamId(n)]
+    ).sort((a, b) => notamSortKey(a) - notamSortKey(b));
+    if (!visibleNotams.length) { results[icao] = 'No significant NOTAM'; continue; }
+    const hash = _notamHash(visibleNotams);
+    const cacheKey = icao + '|' + hash + '|' + aiLines + 'x' + aiChars + '|' + acftCat + '|' + rules + '|' + maxDur + '|' + equipment.join(',');
+    if (_summaryCache[cacheKey]) { results[icao] = _summaryCache[cacheKey]; continue; } // cached text
+    // Call AI
+    try {
+      const r = await fetch('/ai/summarise', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          icao,
+          acft_cat: acftCat,
+          rules,
+          dep_date: depDate,
+          dep_time: depTime,
+          max_dur: maxDur,
+          max_dur_is_auto: maxDurIsAuto,
+          equipment,
+          brief_start: _briefStart,
+          brief_end: _briefEnd,
+          notams: visibleNotams.map(n => ({
+            text: (n.iteme || '').slice(0, 300),
+            mapped: isMappable(n),
+            closure: isFullClosure(n),
+            purpose: n.purpose || '',
+            traffic: n.traffic || '',
+            startvalidity: n.startvalidity ?? null,
+            endvalidity: n.endvalidity ?? null
+          })),
+          ai_lines: aiLines, ai_chars: aiChars
+        })
+      });
+      const d = await r.json();
+      const text = (d.status === 'ok') ? (d.summary || '—') : '—';
+      _summaryCache[cacheKey] = text;
+      results[icao] = text;
+    } catch(e) { results[icao] = '—'; }
+  }
+  return results;
+}
+
+function buildSummaryHtml(summaryOrder, summaries, roles) {
+  if (!summaryOrder.length || !Object.keys(summaries).length) return '';
+  const aiLines = parseInt(document.getElementById('ai-lines')?.value || '2', 10);
+  const aiChars2 = parseInt(document.getElementById('ai-chars')?.value || '80', 10);
+  if (aiLines === 0 || aiChars2 === 0) return '';
+  let rows = '';
+  for (const icao of summaryOrder) {
+    const text = summaries[icao];
+    if (!text) continue;
+    const roleList = roles[icao] || [];
+    const isBold = roleList.includes('dep') || roleList.includes('dest');
+    const isGrey = roleList.includes('tkof') || roleList.includes('alt');
+    const icaoStyle = isBold ? 'font-weight:800' : isGrey ? 'color:#999;font-weight:400' : '';
+    // Plain text — line breaks (\n) become <br>, no per-fragment styling
+    const textHtml = escH(String(text)).replace(/\n/g, '<br>');
+    rows += '<div class="ai-summary-row">'
+      + '<span class="ai-summary-icao" style="' + icaoStyle + '">' + escH(icao) + '</span>'
+      + '<span class="ai-summary-text" style="max-width:' + aiChars2 + 'ch">' + textHtml + '</span>'
+      + '</div>';
+  }
+  if (!rows) return '';
+  return '<div class="lcard ai-summary-card" style="-webkit-column-span:all;column-span:all;break-before:avoid">'
+    + '<div style="font-size:10px;font-weight:600;color:#1565C0;margin-bottom:4px">✨ AI NOTAM Summary</div>'
+    + rows + '</div>';
+}
+// ────────────────────────────────────────────────────────────────────────────
+
+// ── GitHub sync ─────────────────────────────────────────────────────────────
+let _syncEnabled = false;
+let _cachedPrefs = null;  // cached after loadDefaults to avoid double fetch
+let _syncDirty   = false;
+let _syncTimer   = null;
+const SYNC_DEBOUNCE_MS = 30000;
+
+async function initSync() {
+  try {
+    const r = await fetch('/sync/config');
+    const d = await r.json();
+    _syncEnabled = d.enabled;
+    const btn = document.getElementById('sync-btn');
+    if (btn) btn.style.display = _syncEnabled ? '' : 'none';
+    if (_syncEnabled) {
+      // Step 1: pull _prefs.json only — JSON equality, no SHA loop
+      const email = getArEmail();
+      if (email) {
+        try {
+          const pr = await fetch('/sync/pull-prefs?email=' + encodeURIComponent(email));
+          const pd = await pr.json();
+          if (pd.status === 'ok' && pd.updated) {
+            const el = document.getElementById('snapshot-status');
+            if (el) el.textContent = '🔄 Updated from another device — reloading…';
+            setTimeout(() => location.reload(), 1200);
+            return;  // reload will re-run initSync
+          }
+        } catch(e) { console.warn('[sync] prefs pull failed:', e.message); }
+      }
+      // Step 2: pull all route snapshots (skips _prefs.json server-side)
+      try {
+        const fp = await (await fetch('/sync/pull')).json();
+        if (fp.updated > 0) {
+          console.log('[sync] pulled', fp.updated, 'updated file(s) on launch');
+          loadSnapshot();
+        }
+      } catch(e) { console.warn('[sync] pull failed:', e.message); }
+    }
+  } catch(e) { console.warn('[sync] init failed:', e.message); }
+}
+
+
+
+function _syncSchedulePush() {
+  if (!_syncEnabled) return;
+  _syncDirty = true;
+  if (_syncTimer) clearTimeout(_syncTimer);
+  _syncTimer = setTimeout(_syncFlush, SYNC_DEBOUNCE_MS);
+}
+
+async function _syncFlush() {
+  if (!_syncEnabled || !_syncDirty) return;
+  _syncTimer = null;
+  try {
+    const r = await fetch('/sync/push-all', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({})
+    });
+    const d = await r.json();
+    if (d.status === 'ok' && d.pushed > 0) {
+      _syncDirty = false;
+      console.log('[sync] background push:', d.pushed, 'file(s)');
+    } else if (d.status === 'error') {
+      console.warn('[sync] background push error:', d.message);
+    }
+  } catch(e) { console.warn('[sync] background push failed:', e.message); }
+}
+
+async function syncNow() {
+  const btn = document.getElementById('sync-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '🔄 Pulling…'; }
+  try {
+    const pd = await (await fetch('/sync/pull')).json();
+    const msg = '✓ ↓' + (pd.updated||0);
+    if (btn) { btn.textContent = msg; setTimeout(() => { btn.textContent = '🔄 Pull'; btn.disabled = false; }, 2500); }
+    if (pd.updated > 0) loadSnapshot();
+  } catch(e) {
+    console.warn('[sync] pull failed:', e);
+    if (btn) { btn.textContent = '⚠ Pull failed'; setTimeout(() => { btn.textContent = '🔄 Pull'; btn.disabled = false; }, 3000); }
+  }
+}
+
+window.addEventListener('beforeunload', function() {
+  if (!_syncEnabled || !_syncDirty) return;
+  if (_syncTimer) { clearTimeout(_syncTimer); _syncTimer = null; }
+  const blob = new Blob([JSON.stringify({})], {type: 'application/json'});
+  navigator.sendBeacon('/sync/push-all', blob);
+});
+
+function scrollToFirstNew() {
+  const first = document.querySelector('.ni.snap-new');
+  if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function updateSnapStatus() {
+  const el = document.getElementById('snapshot-status');
+  if (!el) return;
+  const newCount  = document.querySelectorAll('.ni.snap-new').length;
+  const goneCount = document.querySelectorAll('.ni.snap-gone').length;
+  const k = _snapKey();
+  const label = k.dep + (k.dest ? '→' + k.dest : '');
+  const count = Object.keys(_snapshot).length;
+  const base  = count > 0
+    ? '📸 Snapshot: ' + count + ' NOTAMs — ' + label
+    : '📸 No snapshot yet for ' + label;
+  const parts = [];
+  if (goneCount > 0) parts.push('⚠️ ' + goneCount + ' GONE');
+  if (newCount  > 0) parts.push('<a href="#" onclick="scrollToFirstNew();return false;" style="color:inherit;text-decoration:underline;cursor:pointer">🆕 ' + newCount + ' NEW</a>');
+  if (document.getElementById('map-lcard')) parts.push('<a href="#map-lcard" onclick="document.getElementById(\'map-lcard\').scrollIntoView({behavior:\'smooth\'});return false;" style="color:inherit;text-decoration:underline;cursor:pointer;margin-left:8px">🗺 Map</a>');
+  el.innerHTML = parts.length ? base + ' · ' + parts.join(' · ') : base;
+}
+
+async function ackGone(btn) {
+  const id = btn.dataset.goneId;
+  const goneDiv = document.getElementById('gone-section');
+  const dataMap = goneDiv?._goneDataMap || {};
+  const data = dataMap[id] || {};
+  const n = { number: data.number, year: data.year, series: data.series, itema: data.itema };
+  await ackNotam(n, 'remove');
+  // Remove gone card
+  const card = document.getElementById('ni-' + id.replace(/[^a-z0-9]/gi, '_'));
+  if (card) card.remove();
+  // Remove section if empty
+  if (goneDiv && !goneDiv.querySelector('.ni')) goneDiv.remove();
+}
+
+async function ackNotam(n, action) {
+  const k = _snapKey();
+  const id = _notamId(n);
+  try {
+    await fetch('/snapshot/ack', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ ...k, notam_id: id, action,
+        notam_data: { number: n.number, year: n.year, series: n.series,
+          itema: n.itema, iteme: (n.iteme || '').slice(0, 500),
+          startvalidity: n.startvalidity, endvalidity: n.endvalidity,
+          scope: n.scope, traffic: n.traffic, purpose: n.purpose }
+      })
+    });
+    if (action === 'add') _snapshot[id] = { number: n.number, year: n.year, series: n.series };
+    else delete _snapshot[id];
+    // Remove the card's visual mark and ack button
+    const card = document.getElementById('ni-' + id.replace(/[^a-z0-9]/gi, '_'));
+    if (card) {
+      card.classList.remove('snap-new', 'snap-gone');
+      card.querySelectorAll('.ack-btn').forEach(b => b.remove());
+    }
+    updateSnapStatus(); // recount NEW/GONE after acknowledgement
+    // Push updated snapshot to GitHub if enabled
+    const _kp = _snapKey();
+    _syncSchedulePush(); // schedule debounced background push
+  } catch(e) { console.warn('ack failed', e); }
+}
+async function flushSnapshot(event) {
+  const email = getArEmail();
+  // Ctrl+click → flush ALL snapshots for this user
+  if (event && event.ctrlKey) {
+    if (!email) { alert('No email address found — cannot identify user snapshots.'); return; }
+    if (!confirm('Flush ALL snapshots for ' + email + '?\nThis will delete all routes for this user, locally and on GitHub.')) return;
+    try {
+      const r = await fetch('/snapshot/flush-all', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ email })
+      });
+      const d = await r.json();
+      _snapshot = {}; _snapLoaded = false;
+      const goneEl = document.getElementById('gone-section');
+      if (goneEl) goneEl.remove();
+      document.querySelectorAll('.snap-new, .snap-gone').forEach(el => el.classList.remove('snap-new', 'snap-gone'));
+      document.querySelectorAll('.ack-btn').forEach(btn => btn.remove());
+      const statusEl = document.getElementById('snapshot-status');
+      if (statusEl) statusEl.textContent = '🗑 All snapshots flushed — ' + d.deleted_local + ' local, ' + d.deleted_remote + ' on GitHub';
+    } catch(e) { alert('Flush all failed: ' + e.message); }
+    return;
+  }
+  // Normal click → flush current route only
+  const k = _snapKey();
+  if (!k.dep) { alert('Enter a departure airport first.'); return; }
+  const label = k.dep + (k.dest ? '→' + k.dest : '');
+  if (!confirm('Clear snapshot for ' + label + '?\nNext fetch will show all NOTAMs as new.')) return;
+  try {
+    await fetch('/snapshot/flush', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(k)
+    });
+    _snapshot = {}; _snapLoaded = false;
+    const goneEl = document.getElementById('gone-section');
+    if (goneEl) goneEl.remove();
+    document.querySelectorAll('.snap-new, .snap-gone').forEach(el => el.classList.remove('snap-new', 'snap-gone'));
+    document.querySelectorAll('.ack-btn').forEach(btn => btn.remove());
+    const el = document.getElementById('snapshot-status');
+    if (el) el.textContent = '🗑 Snapshot flushed — ' + label;
+  } catch(e) { alert('Flush failed: ' + e.message); }
+}
+async function loadNever() {
+  const email = getArEmail();
+  if (!email) return;
+  try {
+    const r = await fetch('/never/load', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ email })
+    });
+    _never = await r.json() || {};
+    _neverLoaded = true;
+    console.log('[never] loaded', Object.keys(_never).length, 'suppressed NOTAMs');
+  } catch(e) { _never = {}; }
+}
+
+async function neverShow(btn) {
+  const nid = btn.dataset.nid;
+  const email = getArEmail();
+  if (!confirm('Never show "' + nid + '" again for this account?\nYou can manage this list in snapshots/' + email + '_never.json')) return;
+  const data = {
+    number: btn.dataset.num, year: btn.dataset.year, series: btn.dataset.series,
+    icao: btn.dataset.icao || '',
+    itema: (function(){ try{ return JSON.parse(btn.dataset.itema||'[]'); }catch(e){ return []; } })(),
+    iteme: btn.dataset.iteme,
+    endvalidity: btn.dataset.endvalidity || null
+  };
+  try {
+    await fetch('/never/add', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ email, notam_id: nid, notam_data: data })
+    });
+    _never[nid] = data;
+    // Hide the card immediately
+    const card = btn.closest('.ni');
+    if (card) card.style.display = 'none';
+    // Push _never.json to GitHub immediately
+    if (_syncEnabled) {
+      const safe = email.replace(/[^a-zA-Z0-9\-_.]/g, '_');
+      fetch('/sync/push', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ paths: ['snapshots/' + safe + '_never.json'] })
+      }).catch(e => console.warn('[sync] never push failed:', e.message));
+    }
+  } catch(e) { alert('Failed: ' + e.message); }
+}
+
+function isNotamNew(n) {
+  return _snapLoaded && Object.keys(_snapshot).length > 0 && !_snapshot[_notamId(n)];
+}
+
+function viz() {
+  const dep = gv('dep'), tkof = gv('tkof'), destRaw = (document.getElementById('dest').value || '').trim().toUpperCase();
+  const dest = destRaw || dep, a1 = gv('alt1'), a2 = gv('alt2');
+  const ws = wpts.map(w => gv(w)).filter(Boolean);
+  const exs = extras.map(e => gv(e)).filter(Boolean);
+  const parts = [];
+  if (dep) parts.push({ l: dep, c: 'dep' });
+  if (tkof) parts.push({ l: tkof, c: 'tkof' });
+  ws.forEach(w => parts.push({ l: w, c: 'wpt' }));
+  if (dest && dest !== dep) parts.push({ l: dest, c: 'dst' });
+  else if (dep) parts.push({ l: dest + '(=DEP)', c: 'dst' });
+  if (a1) parts.push({ l: a1 + '▲1', c: 'alt' });
+  if (a2) parts.push({ l: a2 + '▲2', c: 'alt' });
+  exs.forEach(e => parts.push({ l: e, c: 'ext' }));
+  const el = document.getElementById('rviz');
+  if (!parts.length) { el.innerHTML = '<span style="font-size:11px;color:#bbb;font-style:italic">Enter departure to begin</span>'; return; }
+  el.innerHTML = parts.map((p, i) => '<span class="chip ' + p.c + '">' + p.l + '</span>' + (i < parts.length - 1 ? '<span class="arr">→</span>' : '')).join('');
+}
+function setStat(m) { document.getElementById('stat').textContent = m; }
+function setProg(p) {
+  const pb = document.getElementById('pbar'); pb.style.display = 'block';
+  document.getElementById('pfill').style.width = p + '%';
+  if (p >= 100) setTimeout(() => pb.style.display = 'none', 700);
+}
+
+// ── Main fetch ─────────────────────────────────────────────────────────────
+async function go() {
+  // Sync before fetch: push first (save this device's state), then pull (get other devices')
+  if (_syncEnabled) {
+    try {
+      // 1. Push local snapshots so this device's acks are safe on GitHub
+      if (_syncDirty) {
+        if (_syncTimer) { clearTimeout(_syncTimer); _syncTimer = null; }
+        await fetch('/sync/push-all', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({})
+        });
+        _syncDirty = false;
+      }
+      // 2. Pull snapshots from GitHub (get acks from other devices)
+      const pd = await (await fetch('/sync/pull')).json();
+      if (pd.updated > 0) {
+        console.log('[sync] pre-fetch sync:', pd.updated, 'updated from GitHub');
+        await loadSnapshot();
+      }
+    } catch(e) { /* non-blocking — sync failure never prevents fetching */ }
+  }
+  const dep = gv('dep'); if (!dep) { setStat('Please enter departure.'); return; }
+  if (!_airportDb) { setStat('Airport DB not loaded — wait a moment or click ↺ Reload DB.'); return; }
+  if (!getArEmail() || !getArPassword()) { setStat('Enter your autorouter.aero credentials above.'); return; }
+
+  // Load snapshot and never-show list before fetching
+  await Promise.all([loadSnapshot(), loadNever()]);
+
+  const destRaw = (document.getElementById('dest').value || '').trim().toUpperCase();
+  const dest = destRaw || dep, tkof = gv('tkof'), a1 = gv('alt1'), a2 = gv('alt2');
+  const ws = wpts.map(w => gv(w)).filter(Boolean);
+  const exs = extras.map(e => gv(e)).filter(Boolean);
+  const bufMin = parseInt(document.getElementById('acft').value.split(',')[0]) || 60;
+  const acftKtas = parseInt(document.getElementById('acft').value.split(',')[1]) || 120;
+  const radiusNm = parseInt(document.getElementById('radnm').value) || 60;
+  const dateVal = document.getElementById('dep-date').value;
+  const timeVal = document.getElementById('dep-time').value || '00:00';
+  const depMs = dateVal ? new Date(dateVal + 'T' + timeVal + ':00Z').getTime() : Date.now();
+
+  const startEpoch = Math.max(0, Math.floor((depMs - bufMin * 60000) / 1000));
+  // endEpoch is computed after coordMap is populated (needs route leg distances)
+  let endEpoch = Math.floor((depMs + 12 * 3600000) / 1000); // temporary 12h cap
+
+  const routeSeq = []; const roles = {};
+  const addU = (x, r) => { if (!x) return; if (!routeSeq.includes(x)) routeSeq.push(x); if (!roles[x]) roles[x] = []; if (!roles[x].includes(r)) roles[x].push(r); };
+  addU(dep, 'dep'); if (tkof) addU(tkof, 'tkof'); ws.forEach(w => addU(w, 'wpt')); addU(dest, 'dest');
+  if (a1) addU(a1, 'alt'); if (a2) addU(a2, 'alt'); exs.forEach(x => addU(x, 'extra'));
+
+  const seqForLegs = [];
+  if (tkof) seqForLegs.push(tkof);
+  seqForLegs.push(dep);
+  ws.forEach(w => seqForLegs.push(w));
+  seqForLegs.push(dest);
+  const altLegs = [];
+  if (a1) altLegs.push([dest, a1]);
+  if (a2) altLegs.push([dest, a2]);
+
+  const btn = document.getElementById('fbtn');
+  btn.disabled = true; document.getElementById('results').innerHTML = '';
+
+  try {
+    // ── 1. Coordinates from local airport DB ───────────────────────────────
+    setStat('Resolving coordinates…'); setProg(5);
+    const coordMap = {};
+    [...new Set([...routeSeq, ...exs])].forEach(icao => {
+      const c = getCoords(icao);
+      if (c) coordMap[icao] = c;
+    });
+
+    // Compute endEpoch from actual route distance at half cruise speed (headwind scenario)
+    // Minimum 2h airborne + 1h pre-departure buffer already in startEpoch
+    {
+      const headwindKtas = Math.max(1, acftKtas / 2);
+      let totalNm = 0;
+      const allLegs = [];
+      for (let i = 0; i < seqForLegs.length - 1; i++) {
+        const a = seqForLegs[i], b = seqForLegs[i+1];
+        if (coordMap[a] && coordMap[b]) allLegs.push([coordMap[a], coordMap[b]]);
+      }
+      // Compute DEP→WPTs→DEST distance
+      allLegs.forEach(([ca, cb]) => {
+        const dLat = (cb.lat - ca.lat) * Math.PI / 180;
+        const dLon = (cb.lon - ca.lon) * Math.PI / 180;
+        const a = Math.sin(dLat/2)**2 + Math.cos(ca.lat*Math.PI/180)*Math.cos(cb.lat*Math.PI/180)*Math.sin(dLon/2)**2;
+        totalNm += 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)) * 3440.065;
+      });
+      // Add furthest alternate leg (DEST→ALT1 or DEST→ALT2, whichever is longer)
+      // Worst case: fly full route then divert to furthest alternate
+      function legNm(icaoA, icaoB) {
+        if (!icaoA || !icaoB || !coordMap[icaoA] || !coordMap[icaoB]) return 0;
+        const ca = coordMap[icaoA], cb = coordMap[icaoB];
+        const dLat = (cb.lat - ca.lat) * Math.PI / 180;
+        const dLon = (cb.lon - ca.lon) * Math.PI / 180;
+        const a = Math.sin(dLat/2)**2 + Math.cos(ca.lat*Math.PI/180)*Math.cos(cb.lat*Math.PI/180)*Math.sin(dLon/2)**2;
+        return 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)) * 3440.065;
+      }
+      const alt1Nm = legNm(dest, a1);
+      const alt2Nm = legNm(dest, a2);
+      totalNm += Math.max(alt1Nm, alt2Nm);
+      // Check if user has specified a manual max duration (h:mm format)
+      const _maxDurVal = (document.getElementById('max-dur')?.value || '').trim();
+      let airborneHours;
+      if (_maxDurVal && /^\d+:\d{2}$/.test(_maxDurVal)) {
+        // User-specified: parse h:mm
+        const [_h, _m] = _maxDurVal.split(':').map(Number);
+        airborneHours = _h + _m / 60;
+      } else {
+        // Auto-calculate from route distance at half cruise speed
+        // If no route (single airport or no coords), use minimum 2h — do NOT fallback to 500NM
+        airborneHours = totalNm > 1 ? Math.max(2, totalNm / headwindKtas) : 2;
+        // Show auto value as placeholder — grey, bracketed, never treated as user input
+        const _hrs = Math.floor(airborneHours + 1);
+        const _mins = Math.round(((airborneHours + 1) - _hrs) * 60);
+        const _autoStr = _hrs + ':' + String(_mins).padStart(2, '0');
+        const _durEl = document.getElementById('max-dur');
+        if (_durEl && !_durEl.value.trim()) {
+          _durEl.placeholder = '(' + _autoStr + ')';
+        }
+      }
+      // +1h for pre-departure delays (only if auto-calculated; user value already includes it)
+      const totalHours = _maxDurVal && /^\d+:\d{2}$/.test(_maxDurVal)
+        ? airborneHours
+        : airborneHours + 1;
+      endEpoch = Math.floor((depMs + totalHours * 3600000) / 1000);
+    }
+    setProg(14);
+
+    // ── 2. Corridor scan — entirely local ──────────────────────────────────
+    setStat('Scanning corridor…');
+    const legPairs = [];
+    for (let i = 0; i < seqForLegs.length - 1; i++) {
+      const a = seqForLegs[i], b = seqForLegs[i+1];
+      if (coordMap[a] && coordMap[b]) legPairs.push([a, b, coordMap[a], coordMap[b]]);
+    }
+    for (const [a, b] of altLegs) {
+      if (coordMap[a] && coordMap[b]) legPairs.push([a, b, coordMap[a], coordMap[b]]);
+    }
+    const nearbySet = new Set();
+    legPairs.forEach(([a, b, ca, cb]) => {
+      airportsAlongLeg(ca.lat, ca.lon, cb.lat, cb.lon, radiusNm).forEach(x => nearbySet.add(x));
+    });
+    exs.forEach(icao => {
+      const c = coordMap[icao]; if (!c) return;
+      airportsWithinRadius(c.lat, c.lon, radiusNm).forEach(x => nearbySet.add(x));
+    });
+    routeSeq.forEach(x => nearbySet.delete(x));
+    const nearbyIcaos = [...nearbySet].sort();
+    setProg(27);
+
+    // ── 3. NOTAM fetches via autorouter.aero ───────────────────────────────
+    setStat('Authenticating…');
+    await getArToken(); // validate credentials early
+    setProg(30);
+
+    const routeOnly = routeSeq.filter(x => !exs.includes(x));
+    const firs = firsForIcaos(routeOnly, routeOnly);
+    setStat('Fetching ' + routeSeq.length + ' route airports + ' + firs.length + ' FIRs…');
+
+    // Fetch route airports separately from FIRs — FIRs can have hundreds of NOTAMs
+    // and mixing them in a batch causes the limit=100 to cut off airport NOTAMs.
+    const routeApts = {};
+    // Route airports (no FIRs) in batches of 20
+    for (let i = 0; i < routeSeq.length; i += 20) {
+      const batch = routeSeq.slice(i, i+20);
+      const res = await fetchNotamsForIcaos(batch, startEpoch, endEpoch, 100);
+      Object.assign(routeApts, res);
+    }
+    // FIRs fetched individually with higher limit
+    for (const fir of firs) {
+      const res = await fetchNotamsForIcaos([fir], startEpoch, endEpoch, 100);
+      Object.assign(routeApts, res);
+    }
+    const fetchedAt = new Date().toISOString();
+    setProg(52);
+
+    const extraFirs = firsForIcaos(exs, [...routeSeq, ...firs]);
+    const allFetched = new Set([...routeSeq, ...firs]);
+    const extrasFetch = [...exs, ...extraFirs].filter(x => !allFetched.has(x));
+    if (extrasFetch.length) {
+      for (let i = 0; i < extrasFetch.length; i += 20) {
+        const batch = extrasFetch.slice(i, i+20);
+        try {
+          const res = await fetchNotamsForIcaos(batch, startEpoch, endEpoch, 100);
+          Object.assign(routeApts, res);
+        } catch(e) {}
+      }
+    }
+    setProg(62);
+
+    const nearbyApts = {};
+    for (let i = 0; i < nearbyIcaos.length; i += 20) {
+      const batch = nearbyIcaos.slice(i, i+20);
+      setStat('Nearby batch ' + (Math.floor(i/20)+1) + '/' + Math.ceil(nearbyIcaos.length/20) + '…');
+      try {
+        const res = await fetchNotamsForIcaos(batch, startEpoch, endEpoch, 50);
+        Object.assign(nearbyApts, res);
+      } catch(e) { batch.forEach(x => { nearbyApts[x] = { notams: [], total: 0, error: String(e) }; }); }
+      setProg(62 + Math.round((i / Math.max(nearbyIcaos.length, 1)) * 33));
+    }
+    setProg(100); setStat(''); btn.disabled = false;
+
+    const allApts = Object.assign({}, routeApts, nearbyApts);
+  // Build summaryOrder here where ws, dep, dest are available
+  const summaryOrder = [];
+  const _addSO2 = (x) => { if (x && !summaryOrder.includes(x)) summaryOrder.push(x); };
+  if (tkof) _addSO2(tkof); _addSO2(dep); ws.forEach(w => _addSO2(w));
+  _addSO2(dest); if (a1) _addSO2(a1); if (a2) _addSO2(a2); exs.forEach(x => _addSO2(x));
+    renderAll(routeApts, nearbyApts, allApts, nearbyIcaos, routeSeq, roles, firs, exs, extraFirs, radiusNm, coordMap, legPairs, fetchedAt, startEpoch, endEpoch, summaryOrder);
+    applySnapshotDiff(allApts, new Set([...firs, ...extraFirs]));
+  } catch(e) {
+    setProg(100); setStat(''); btn.disabled = false;
+    document.getElementById('results').innerHTML = '<div class="errbox"><strong>Error:</strong> ' + escH(e.message) + '</div>';
+  }
+}
+
+
+
+// ── Card renderers ─────────────────────────────────────────────────────────
+function fmtTs(u) {
+  if (u == null) return '?';
+  try { const d = typeof u === 'number' ? new Date(u * 1000) : new Date(u); return d.toISOString().replace('T', ' ').slice(0, 16) + 'Z'; } catch (e) { return String(u); }
+}
+// Returns true if NOTAM validity overlaps the briefing time window
+function inBriefWindow(n) {
+  if (!_briefStart || !_briefEnd) return true; // no window set = highlight all
+  const ns = typeof n.startvalidity === 'number' ? n.startvalidity
+    : (n.startvalidity ? Math.floor(new Date(n.startvalidity).getTime()/1000) : 0);
+  const ne = typeof n.endvalidity === 'number' ? n.endvalidity
+    : (n.endvalidity ? Math.floor(new Date(n.endvalidity).getTime()/1000) : 9999999999);
+  return ns < _briefEnd && ne > _briefStart;
+}
+
+function escH(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+// ── AZBA/RTBA CSV-vs-cache discrepancy check ──────────────────────────────
+// Compares the live cache (data/azba_zones_cache.json -- trusted, may be
+// openAIP-refreshed) against a fresh parse of data/zones_RTBA_openAIP.csv.
+// Read-only on both sides; this never modifies anything, it only surfaces
+// a warning so the user knows to consider updating the CSV file manually.
+function _formatLimitShort(limit) {
+  if (!limit) return '?';
+  if (limit.unit === 'FL') return 'FL' + String(limit.value).padStart(3, '0');
+  if (limit.value === 0 && limit.reference === 'GND') return 'SFC';
+  return limit.value + 'ft ' + limit.reference;
+}
+function _azbaDiffTooltip(differing) {
+  return differing.map(function(d) {
+    if (d.fields.includes('missing_from_cache')) return d.name + ': in CSV but missing from cache';
+    if (d.fields.includes('missing_from_csv'))   return d.name + ': in cache but missing from CSV';
+    const parts = [];
+    if (d.fields.includes('floor'))   parts.push('floor ' + _formatLimitShort(d.csv.floor) + ' (CSV) vs ' + _formatLimitShort(d.cache.floor) + ' (cache)');
+    if (d.fields.includes('ceiling')) parts.push('ceiling ' + _formatLimitShort(d.csv.ceiling) + ' (CSV) vs ' + _formatLimitShort(d.cache.ceiling) + ' (cache)');
+    if (d.fields.includes('polygon')) parts.push('boundary coordinates differ');
+    return d.name + ': ' + parts.join(', ');
+  }).join('\n');
+}
+// Stores the most recent /azba/diff result so renderAll() can show the
+// in-results warning without re-fetching -- the check itself only runs
+// once, on page load (see the startup block below).
+let _azbaLastDiffResult = null;
+
+async function checkAzbaDiscrepancy() {
+  const statusEl = document.getElementById('azba-status');
+  if (statusEl) {
+    statusEl.style.color = '#888';
+    statusEl.textContent = '⏳ Checking RTBA data\u2026';
+  }
+  console.log('[azba] checkAzbaDiscrepancy: starting, statusEl found =', !!statusEl);
+
+  let result;
+  try {
+    const resp = await fetch('/azba/diff');
+    console.log('[azba] /azba/diff HTTP status:', resp.status);
+    result = await resp.json();
+    console.log('[azba] /azba/diff result:', result);
+  } catch (e) {
+    console.error('[azba] /azba/diff fetch threw:', e);
+    result = { ok: false, error: String(e), differing: [], unverified_count: 0, verified_count: 0 };
+  }
+
+  _azbaLastDiffResult = result;
+
+  if (!result.ok) {
+    if (statusEl) {
+      statusEl.style.color = '#999';
+      statusEl.textContent = 'RTBA check failed';
+      statusEl.title = result.error || '';
+    }
+    console.log('[azba] status set to: RTBA check failed --', result.error);
+    insertAzbaResultsWarning(); // clears any stale in-results card from a previous check
+    return; // non-critical advisory check -- never interrupt the briefing
+  }
+
+  const differing = result.differing || [];
+  const verifiedCount   = result.verified_count   || 0;
+  const unverifiedCount = result.unverified_count || 0;
+
+  if (differing.length === 0) {
+    if (statusEl) {
+      if (verifiedCount === 0) {
+        // Nothing has ever been checked against an independent source
+        // (openAIP) -- the cache is just a copy of the CSV, so a CSV
+        // error/typo can't be detected this way. Be honest about that
+        // rather than showing a falsely reassuring green checkmark.
+        statusEl.style.color = '#999';
+        statusEl.textContent = 'RTBA: not yet verified';
+        statusEl.title = 'No zones have been checked against openAIP yet -- the cache was seeded directly from the CSV, so this can\'t catch CSV errors. Configure OPENAIP_API_KEY in config.py to enable independent verification.';
+      } else {
+        statusEl.style.color = '#2E7D32';
+        statusEl.textContent = '✓ RTBA data ok';
+        statusEl.title = unverifiedCount > 0
+          ? unverifiedCount + ' zone(s) not yet independently verified'
+          : '';
+      }
+    }
+    console.log('[azba] status set to:', statusEl ? statusEl.textContent : '(no statusEl)');
+    insertAzbaResultsWarning(); // clears any stale in-results card from a previous check
+    return;
+  }
+
+  // Persistent status indicator (always visible, near Reload DB)
+  if (statusEl) {
+    statusEl.style.color = '#E65100';
+    statusEl.innerHTML = '⚠ RTBA data: ' + differing.length + ' zone(s) differ from CSV'
+      + ' <button onclick="updateAzbaCsv()" style="font-size:9px;padding:1px 5px;margin-left:4px;border-radius:3px;border:1px solid #E65100;background:#fff;color:#E65100;cursor:pointer">Update CSV</button>';
+    statusEl.title = _azbaDiffTooltip(differing);
+  }
+  console.log('[azba] status set to: discrepancy found, count =', differing.length);
+
+  // Also try inserting the in-results warning immediately, in case a
+  // briefing happens to already be on screen (e.g. restored from a
+  // snapshot) by the time this resolves.
+  insertAzbaResultsWarning();
+}
+
+// Triggers the server-side CSV export (cache -> data/zones_RTBA_openAIP.csv)
+// and re-runs the discrepancy check afterward so the status/warning reflect
+// the now-updated CSV. Only meaningful when the cache holds openAIP-verified
+// data -- exporting a CSV-only cache just reformats the CSV, it can't add
+// data that was never independently verified in the first place.
+async function updateAzbaCsv() {
+  const statusEl = document.getElementById('azba-status');
+  if (statusEl) {
+    statusEl.style.color = '#888';
+    statusEl.innerHTML = '⏳ Updating CSV\u2026';
+  }
+  let result;
+  try {
+    const resp = await fetch('/azba/update-csv', { method: 'POST' });
+    result = await resp.json();
+    console.log('[azba] /azba/update-csv result:', result);
+  } catch (e) {
+    console.error('[azba] /azba/update-csv fetch threw:', e);
+    result = { ok: false, error: String(e) };
+  }
+  if (!result.ok) {
+    if (statusEl) {
+      statusEl.style.color = '#999';
+      statusEl.textContent = 'CSV update failed';
+      statusEl.title = result.error || '';
+    }
+    return;
+  }
+  if (result.mismatches && result.mismatches.length) {
+    console.warn('[azba] CSV export had round-trip mismatches:', result.mismatches);
+  }
+  // Re-check now that the CSV (hopefully) matches the cache
+  await checkAzbaDiscrepancy();
+}
+
+// Re-renders the in-results warning card from the LAST stored /azba/diff
+// result (see checkAzbaDiscrepancy above) -- never fetches anything itself.
+// Called from renderAll() after every briefing render, since #results gets
+// fully replaced each time and any previously-inserted card would be gone.
+function insertAzbaResultsWarning() {
+  const old = document.querySelector('.azba-diff-card');
+  if (old) old.remove();
+
+  const result = _azbaLastDiffResult;
+  if (!result || !result.ok) return;
+  const differing = result.differing || [];
+  if (differing.length === 0) return;
+
+  const resultsEl = document.getElementById('results');
+  if (!resultsEl || !resultsEl.children.length) return;
+
+  const tooltip = escH(_azbaDiffTooltip(differing));
+  const html = '<div class="lcard azba-diff-card" style="-webkit-column-span:all;column-span:all;break-before:avoid;font-size:11px;color:#E65100;background:#FFF3E0;border-left:3px solid #E65100;padding:6px 10px;border-radius:6px" title="' + tooltip + '">'
+    + '⚠️ Check RTBA data and update <code>/data/zones_RTBA_openAIP.csv</code> if needed.'
+    + ' <button onclick="updateAzbaCsv()" style="font-size:10px;padding:2px 6px;margin-left:4px;border-radius:3px;border:1px solid #E65100;background:#fff;color:#E65100;cursor:pointer">Update CSV</button>'
+    + '</div>';
+  const aisRef = document.getElementById('ais-check-lcard')
+              || document.getElementById('aip-sup-lcard');
+  if (aisRef) aisRef.insertAdjacentHTML('beforebegin', html);
+  else resultsEl.insertAdjacentHTML('beforeend', html);
+}
+const ROLE_LABELS = { tkof: 'TKOF ALT', dep: 'DEP', wpt: 'WPT', dest: 'DEST', alt: 'ALT', fir: 'FIR', extra: 'EXTRA' };
+function cardUid(icao, n) { return icao + '|' + (n.number ? (n.series || '') + n.number + '/' + (n.year || '') : (n.iteme || '').slice(0, 20)); }
+
+function notamActions(n, icao) {
+  const nid = _notamId(n);
+  if (_never[nid]) return '';
+  const safeItema = JSON.stringify(n.itema || []);
+  return '<div class="ni-actions">'
+    + '<button class="btn-local" title="Never show this NOTAM" onclick="neverShow(this)"'
+    + ' data-nid="' + escH(nid) + '"'
+    + ' data-num="' + escH(n.number||'') + '"'
+    + ' data-year="' + escH(String(n.year||'')) + '"'
+    + ' data-series="' + escH(n.series||'') + '"'
+    + ' data-icao="' + escH(icao||'') + '"'
+    + ' data-itema="' + escH(safeItema) + '"'
+    + ' data-iteme="' + escH((n.iteme||'').slice(0,200)) + '"'
+    + ' data-endvalidity="' + escH(String(n.endvalidity||'')) + '">🚫</button>'
+    + '</div>';
+}
+
+function fullCard(n, anchor, icaoLabel) {
+  if (_neverLoaded && _never[_notamId(n)]) { _neverHit.set(_notamId(n), { n, icao: icaoLabel }); return ''; } // never show
+  _notamLookup[_notamId(n)] = n; // for map badge click
+  const id = n.number ? (n.series || '') + n.number + '/' + (n.year || '') : '—';
+  const cc = notamCC(n), mapped = isMappable(n), fc = isFullClosure(n);
+  const dt = (n.itemd || '').trim(), uid = cardUid(icaoLabel, n);
+  const prefix2ch = (icaoLabel || '').slice(0, 2);
+  const cbId = 'cb_' + escH(uid).replace(/[^a-z0-9]/gi,'_');
+  const niLong = (n.iteme || '').length > 400 ? ' ni-long' : '';
+  return '<div class="ni' + (mapped ? ' mapped' : '') + (fc ? ' full-closure' : '') + niLong + '"'
+    + (anchor ? ' id="' + anchor + '"' : '') + ' data-uid="' + escH(uid) + '">'
+    + '<input type="checkbox" class="print-cb" id="' + cbId + '" checked title="Include in print">'
+    + notamActions(n, icaoLabel)
+    + '<span class="ni-icao" onclick="event.stopPropagation();scrollToFlightParams()" title="Go to Aircraft & flight parameters">' + escH(icaoLabel || '') + '</span>'
+    + '<div class="nhdr"><span class="nid ' + cc + '">' + escH(id) + '</span>'
+    + ((n.scope || '').trim() ? '<span class="nbadge">' + escH((n.scope || '').trim()) + '</span>' : '')
+    + ((n.traffic || '').trim() ? '<span class="nbadge">' + escH((n.traffic || '').trim()) + '</span>' : '')
+    + ((n.purpose || '').trim() ? '<span class="nbadge">' + escH((n.purpose || '').trim()) + '</span>' : '')
+    + (mapped ? '<span class="nbadge mapped-badge" style="cursor:pointer" onclick="event.stopPropagation();openMapFullscreen(_notamLookup[' + JSON.stringify(_notamId(n)).replace(/"/g, '&quot;') + '])" title="Open map centred on this NOTAM">📍 map</span>' : '')
+    + '</div>'
+    + (dt ? '<div class="nfield"><span class="nfield-label">D)</span><span class="ne" style="color:#888">' + escH(dt) + '</span></div>' : '')
+    + '<div class="nfield"><span class="nfield-label">E)</span><span class="ne">' + linkifySupRefs(escH((n.iteme || '').replace(/\s*\(https?:\/\/[^)\s]+\)/g, '').replace(/\s*\([ab]\)/g, '')), prefix2ch) + '</span></div>'
+    + '<div class="nv' + (inBriefWindow(n) ? ' active' : '') + '">From ' + fmtTs(n.startvalidity) + ' → Until ' + fmtTs(n.endvalidity)
+    + (n.lower != null ? ' | ' + fmtAltRaw(n.itemf, n.lower) + '–' + fmtAltRaw(n.itemg, n.upper) : '')
+    + '</div></div>';
+}
+function stubCard(n, icaoLabel) {
+  const id = n.number ? (n.series || '') + n.number + '/' + (n.year || '') : '—';
+  const anchor = notamAnchor(notamKey(n)), cc = notamCC(n), dt = (n.itemd || '').trim(), uid = cardUid(icaoLabel, n);
+  const cbIdS = 'cb_' + escH(uid).replace(/[^a-z0-9]/gi,'_');
+  return '<div class="ni stub' + '' + '" data-uid="' + escH(uid) + '">'
+    + '<input type="checkbox" class="print-cb" id="' + cbIdS + '" checked title="Include in print">'
+    + notamActions(n, icaoLabel)
+    + '<span class="ni-icao" onclick="event.stopPropagation();scrollToFlightParams()" title="Go to Aircraft & flight parameters">' + escH(icaoLabel || '') + '</span>'
+    + '<div class="nhdr"><span class="nid ' + cc + '"><a href="#' + anchor + '" onclick="scrollTo2(\'' + anchor + '\')">' + escH(id) + '</a></span>'
+    + '<span class="nbadge gloss">→ glossary</span></div>'
+    + (dt ? '<div class="nfield"><span class="nfield-label">D)</span><span class="ne" style="color:#888">' + escH(dt) + '</span></div>' : '')
+    + '<div class="nv' + (inBriefWindow(n) ? ' active' : '') + '">From ' + fmtTs(n.startvalidity) + ' → Until ' + fmtTs(n.endvalidity) + '</div></div>';
+}
+function debugCard(n, reason, icaoLabel) {
+  const id = n.number ? (n.series || '') + n.number + '/' + (n.year || '') : '—', dt = (n.itemd || '').trim();
+  const cbId = 'cbh_' + escH(id).replace(/[^a-z0-9]/gi,'_') + '_' + escH(icaoLabel||'');
+  const mappedDbg = isMappable(n);
+  if (mappedDbg) _notamLookup[_notamId(n)] = n; // for map badge click
+  return '<div class="ni debug-hidden">'
+    + '<span class="ni-icao" onclick="event.stopPropagation();scrollToFlightParams()" title="Go to Aircraft & flight parameters">' + escH(icaoLabel || '') + '</span>'
+    + '<div class="nhdr"><span class="nid cl-normal">' + escH(id) + '</span><span class="nbadge hidden-reason">hidden: ' + escH(reason) + '</span>'
+    + (mappedDbg ? '<span class="nbadge mapped-badge" style="cursor:pointer" onclick="event.stopPropagation();openMapFullscreen(_notamLookup[' + JSON.stringify(_notamId(n)).replace(/"/g, '&quot;') + '])" title="Open map centred on this NOTAM">📍 map</span>' : '')
+    + '</div>'
+    + (dt ? '<div class="nfield"><span class="nfield-label">D)</span><span class="ne" style="color:#888">' + escH(dt) + '</span></div>' : '')
+    + '<div class="nfield"><span class="nfield-label">E)</span><span class="ne">' + escH(n.iteme || '') + '</span></div>'
+    + '<div class="nv">From ' + fmtTs(n.startvalidity) + ' → Until ' + fmtTs(n.endvalidity) + '</div></div>';
+}
+// ── AIP SUP URL builder ────────────────────────────────────────────────────
+// ref format: "005/26" or "005/2026"
+// prefix: 2-char ICAO country prefix from the NOTAM location (e.g. "LF", "EG")
+const AIS_WEBSITES = {
+  LF: { name: 'France',          url: 'https://www.sia.aviation-civile.gouv.fr/' },
+  EG: { name: 'United Kingdom',  url: 'https://nats-uk.ead-it.com/cms-nats/opencms/en/Publications/aip-supplements/' },
+  EI: { name: 'Ireland',         url: 'https://www.iaa.ie/general-aviation/aeronautical-information-aip' },
+  EB: { name: 'Belgium',         url: 'https://www.belgocontrol.be/en/spa' },
+  EL: { name: 'Luxembourg',      url: 'https://www.dac.public.lu/en/publications/AIP.html' },
+  EH: { name: 'Netherlands',     url: 'https://eaip.lvnl.nl/' },
+  ED: { name: 'Germany',         url: 'https://aip.dfs.de/basicaip/' },
+  ET: { name: 'Germany (Mil)',   url: 'https://aip.dfs.de/basicaip/' },
+  LS: { name: 'Switzerland',     url: 'https://www.skyguide.ch/en/services/aeronautical-information-services' },
+  LE: { name: 'Spain',           url: 'https://aip.enaire.es/' },
+  LI: { name: 'Italy',           url: 'https://www.enav.it/en/services/ais.html' },
+  LP: { name: 'Portugal',        url: 'https://aip.nav.pt/' },
+  LO: { name: 'Austria',         url: 'https://eaip.austrocontrol.at/' },
+  LK: { name: 'Czech Republic',  url: 'https://aim.rlp.cz/ais/index.jsp' },
+  EP: { name: 'Poland',          url: 'https://www.pansa.pl/en/ais/' },
+  EK: { name: 'Denmark',         url: 'https://aim.naviair.dk/' },
+  ES: { name: 'Sweden',          url: 'https://aro.lfv.se/' },
+  EN: { name: 'Norway',          url: 'https://aro.avinor.no/' },
+  EF: { name: 'Finland',         url: 'https://www.ais.fi/' },
+  LG: { name: 'Greece',          url: 'https://www.hcaa.gr/en/aip' },
+  LT: { name: 'Turkey',          url: 'https://www.dhmi.gov.tr/Pages/AIPTurkey.aspx' },
+  GM: { name: 'Morocco',         url: 'https://onda.ma/en/ais' },
+};
+
+function polyCentroid(pts) {
+  // Simple mean centroid — good enough for convex/near-convex zones
+  const lat = pts.reduce((s, p) => s + p[0], 0) / pts.length;
+  const lon = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+  return [lat, lon];
+}
+
+// Format API altitude value (integer units of 100ft/FL):
+// 0 → SFC, <100 → ft AMSL, ≥100 → FL
+function fmtAlt(val) {
+  if (val === 0)   return 'SFC';
+  if (val >= 100)  return 'FL' + String(val).padStart(3, '0');
+  return (val * 100) + 'ft AMSL';
+}
+
+// Display raw itemf/itemg strings when available, fall back to fmtAlt
+function fmtAltRaw(rawStr, numVal) {
+  if (rawStr && rawStr.trim()) return rawStr.trim().toUpperCase();
+  if (numVal == null) return '?';
+  return fmtAlt(numVal);
+}
+
+function zoneAltLabel(n) {
+  if (n.lower == null || n.upper == null) return null;
+  const hi = fmtAltRaw(n.itemg, n.upper);
+  const lo = fmtAltRaw(n.itemf, n.lower);
+  return hi + '\n\u2500\u2500\u2500\u2500\n' + lo;
+}
+function addZoneLabel(lat, lon, label, color) {
+  if (!label) return;
+  L.tooltip({
+    permanent: true, direction: 'center', offset: [0, 0], opacity: 0.9,
+    className: 'zone-alt-label', pane: 'zoneLabelPane'
+  }).setContent('<span style="font-size:9px;font-weight:600;color:' + color + ';white-space:pre;text-align:center;display:block">' + label + '</span>')
+    .setLatLng([lat, lon]).addTo(obstMap);
+}
+
+function supAipUrl(ref, prefix) {
+  const m = ref.match(/(\d{3})\/(\d{2,4})/);
+  if (!m) return null;
+  const num = m[1].padStart(3, '0');
+  const yr  = m[2].length === 2 ? '20' + m[2] : m[2];
+  const p   = (prefix || '').toUpperCase().slice(0, 2);
+
+  switch (p) {
+    // ── France ──
+    case 'LF':
+      return `https://www.sia.aviation-civile.gouv.fr/media/store/documents/file/l/f/lf_sup_${yr}_${num}_fr.pdf`;
+
+    // ── Spain ──
+    case 'LE':
+      return `https://aip.enaire.es/aip/contenido_SUP/LE_SUP_${yr}_${num}_en.html`;
+
+    // ── UK ──
+    case 'EG':
+      return `https://nats-uk.ead-it.com/cms-nats/opencms/en/Publications/aip-supplements/EG_Sup_${yr}_${num}_en.pdf`;
+
+    // ── Ireland ──
+    case 'EI':
+      return `https://www.iaa.ie/docs/default-source/aip/sup/EI_SUP_${yr}_${num}_en.pdf`;
+
+    // ── Belgium ──
+    case 'EB':
+      return `https://www.belgocontrol.be/spa/pdf/AIP_SUP/EB_SUP_${yr}_${num}_en.pdf`;
+
+    // ── Luxembourg ──
+    case 'EL':
+      return `https://www.dac.public.lu/content/dam/dac/aip/sup/EL_SUP_${yr}_${num}_en.pdf`;
+
+    // ── Netherlands ──
+    case 'EH':
+      return `https://eaip.lvnl.nl/supplement/EH_SUP_${yr}_${num}_en.pdf`;
+
+    // ── Germany ──
+    case 'ED':
+    case 'ET':
+      return `https://aip.dfs.de/basicaip/B/SUP/ED_SUP_${yr}_${num}.pdf`;
+
+    // ── Switzerland ──
+    case 'LS':
+      return `https://www.skyguide.ch/fileadmin/user_upload/SUP/LS_SUP_${yr}_${num}_en.pdf`;
+
+    // ── Italy ──
+    case 'LI':
+      return `https://www.enav.it/sites/default/files/LI_SUP_${yr}_${num}_en.pdf`;
+
+    // ── Portugal ──
+    case 'LP':
+      return `https://aip.nav.pt/media/aipsupplementos/LP_SUP_${yr}_${num}_en.pdf`;
+
+    // ── Austria ──
+    case 'LO':
+      return `https://eaip.austrocontrol.at/aip/supplements/LO_SUP_${yr}_${num}_en.pdf`;
+
+    // ── Czech Republic ──
+    case 'LK':
+      return `https://aim.rlp.cz/ais/aip/sup/LK_SUP_${yr}_${num}_en.pdf`;
+
+    // ── Poland ──
+    case 'EP':
+      return `https://www.pansa.pl/wp-content/uploads/AIP_POLAND/SUP/EP_SUP_${yr}_${num}_en.pdf`;
+
+    // ── Denmark ──
+    case 'EK':
+      return `https://aim.naviair.dk/aip/current/supplements/EK_SUP_${yr}_${num}_en.pdf`;
+
+    // ── Sweden ──
+    case 'ES':
+      return `https://aro.lfv.se/Editorial/View/IAIP/Files/SUP/ES_SUP_${yr}_${num}_en.pdf`;
+
+    // ── Norway ──
+    case 'EN':
+      return `https://aro.avinor.no/en/aip/supplements/EN_SUP_${yr}_${num}_en.pdf`;
+
+    // ── Finland ──
+    case 'EF':
+      return `https://www.ais.fi/ais/aip/supplements/EF_SUP_${yr}_${num}_en.pdf`;
+
+    // ── Greece ──
+    case 'LG':
+      return `https://www.hcaa.gr/aip/sup/LG_SUP_${yr}_${num}_en.pdf`;
+
+    // ── Turkey ──
+    case 'LT':
+      return `https://www.dhmi.gov.tr/aip/sup/LT_SUP_${yr}_${num}_en.pdf`;
+
+    // ── Morocco ──
+    case 'GM':
+      return `https://onda.ma/aip/sup/GM_SUP_${yr}_${num}_fr.pdf`;
+
+    default:
+      return null;
+  }
+}
+
+// Build a linked ref badge: "005/26" → clickable link or plain text
+function supAipBadge(ref, prefix) {
+  const url = supAipUrl(ref, prefix);
+  const display = escH(ref);
+  if (url) {
+    const isLF = url.includes('/lf_sup_');
+    const urlA = isLF ? url.replace('/lf_sup_', '/lf_sup_a_') : null;
+    const urlB = isLF ? url.replace('/lf_sup_', '/lf_sup_b_') : null;
+    const linkStyle = 'color:#E65100;font-weight:600;text-decoration:underline;text-underline-offset:2px;font-family:monospace';
+    const varStyle = 'color:#aaa;font-size:9px;text-decoration:none;margin-left:3px;vertical-align:super';
+    const varHov = 'color:#E65100;font-size:9px;text-decoration:underline;margin-left:1px;vertical-align:super';
+    return '<a href="' + escH(url) + '" target="_blank" rel="noopener" style="' + linkStyle + '" title="Open AIP SUP ' + escH(ref) + '">' + display + '</a>'
+      + (urlA ? ' <a href="' + escH(urlA) + '" target="_blank" rel="noopener" style="' + varStyle + '" title="Try amendment variant if main link gives 404">⁽ᵃ⁾</a>' : '')
+      + (urlB ? '<a href="' + escH(urlB) + '" target="_blank" rel="noopener" style="' + varStyle + '" title="Try amendment variant if _a_ also fails">⁽ᵇ⁾</a>' : '');
+  }
+  return '<span style="font-family:monospace;color:#E65100;font-weight:600">' + display + '</span>';
+}
+
+// Linkify "AIP SUP NNN/YY" or "AIRAC AIP SUP NNN/YY" refs in already-escaped HTML text
+function linkifySupRefs(escapedHtml, prefix) {
+  // Match patterns like: AIP SUP 005/26, AIRAC AIP SUP 085/26, SUP 005/26
+  return escapedHtml.replace(
+    /\b((?:AIRAC\s+)?AIP\s+SUP|SUP)\s+(\d{3}\s*\/\s*\d{2,4})/gi,
+    function(match, label, ref) {
+      const cleanRef = ref.replace(/\s/g, '');
+      const url = supAipUrl(cleanRef, prefix);
+      if (url) {
+        const isLF = url.includes('/lf_sup_');
+        const urlA = isLF ? url.replace('/lf_sup_', '/lf_sup_a_') : null;
+        const urlB = isLF ? url.replace('/lf_sup_', '/lf_sup_b_') : null;
+        const vs = 'color:#aaa;font-size:9px;text-decoration:none;margin-left:3px;vertical-align:super';
+        const vs2 = 'color:#aaa;font-size:9px;text-decoration:none;margin-left:3px;vertical-align:super';
+        return label + ' <a href="' + escH(url) + '" target="_blank" rel="noopener" '
+          + 'style="color:#E65100;font-weight:600;text-decoration:underline;text-underline-offset:2px" '
+          + 'title="' + escH(url) + '">' + escH(cleanRef) + '</a>'
+          + (urlA ? ' <a href="' + escH(urlA) + '" target="_blank" rel="noopener" style="' + vs2 + '" title="Try if main link gives 404">&#x28;a&#x29;</a>' : '')
+          + (urlB ? '<a href="' + escH(urlB) + '" target="_blank" rel="noopener" style="' + vs2 + '" title="Try if _a_ also fails">&#x28;b&#x29;</a>' : '');
+      }
+      return match;
+    }
+  );
+}
+
+
+
+function scrollTo2(a) { const el = document.getElementById(a); if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50); }
+function scrollToFlightParams() { const el = document.getElementById('flight-params-card'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+
+function renderAptBlock(icao, ad, glossary, roleList, hideEmptyAllowed = false) {
+  const notams = (ad?.notams || []), err = ad?.error;
+  const useDedup = document.getElementById('filt-dedup').checked;
+  // Nearby airports with 0 NOTAMs are always hidden (decluttering the corridor
+  // list). Route airports (explicitly entered ICAOs) always show, even with
+  // 0 NOTAMs, so the pilot has explicit confirmation that the airport was checked.
+  const hideEmpty = hideEmptyAllowed;
+  const { glossKeys } = glossary;
+  const thresh = parseInt(document.getElementById('obst-thresh').value) || 200;
+  let fullCount = 0, stubIds = [], debugItems = [];
+  const sortedNotams = [...notams].sort((a, b) => notamDisplaySortKey(a) - notamDisplaySortKey(b));
+  const cards = sortedNotams.map(n => {
+    if (isChecklist(n)) { debugItems.push({ n, reason: 'checklist' }); return ''; }
+    if (shouldHideByRules(n)) { debugItems.push({ n, reason: 'traffic type (' + (n.traffic||'?') + ') not applicable to ' + document.getElementById('rules').value }); return ''; }
+    if (shouldHideByAltitude(n)) { debugItems.push({ n, reason: 'altitude band FL' + String(n.lower).padStart(3,'0') + '–FL' + String(n.upper).padStart(3,'0') + ' above ceiling FL' + String(parseCruiseFL()+10).padStart(3,'0') }); return ''; }
+    if (shouldHideObst(n)) { debugItems.push({ n, reason: 'obstacle <' + thresh + 'ft AGL' }); return ''; }
+    if (shouldHideEquipment(n)) { debugItems.push({ n, reason: 'irrelevant equipment/category' }); return ''; }
+    const k = notamKey(n);
+    if (useDedup && glossKeys.has(k)) {
+      stubIds.push({ id: n.number ? (n.series || '') + n.number + '/' + (n.year || '') : '—', anchor: notamAnchor(k) });
+      return stubCard(n, icao);
+    }
+    fullCount++; return fullCard(n, notamAnchor(k), icao);
+  }).filter(Boolean);
+  const total = fullCount + stubIds.length;
+  if (hideEmpty && total === 0 && !err) return { html: '', debugItems, hasContent: false };
+  const roleTags = (roleList || []).map(r => '<span class="role-tag ' + r + '">' + (ROLE_LABELS[r] || r) + '</span>').join('');
+  const html = '<div class="ablock" id="apt_' + icao + '">'
+    // FIX: wrap heading + first NOTAM card in a no-break div so they always
+    // land in the same column. Subsequent NOTAMs are outside and can flow freely.
+    + '<div class="apt-anchor">'
+    + '<div class="apt-head">' + escH(icao) + ' ' + roleTags
+    + ' <span style="font-weight:400;font-size:10px;color:#888">' + total + ' NOTAM' + (total !== 1 ? 's' : '') + (debugItems.length ? ' · ' + debugItems.length + ' hidden' : '') + '</span>'
+    + (err ? '<span style="color:#C62828;font-size:10px">— ' + escH(err) + '</span>' : '')
+    + '</div>'
+    + (cards[0] || '<div class="none">No NOTAMs in this validity window.</div>')
+    + '</div>'
+    + (cards.slice(1).join('') || '')
+    + (stubIds.length ? '<div class="gloss-footer">📋 See glossary: ' + stubIds.map(({ id, anchor }) => '<a onclick="scrollTo2(\'' + anchor + '\')">' + escH(id) + '</a>').join(' · ') + '</div>' : '')
+    + '</div>';
+  return { html, debugItems, hasContent: true };
+}
+
+// ── Geometry helpers ───────────────────────────────────────────────────────
+function haversineNm(lat1, lon1, lat2, lon2) {
+  const R = 3440.065, f1 = lat1 * Math.PI / 180, f2 = lat2 * Math.PI / 180;
+  const df = (lat2 - lat1) * Math.PI / 180, dl = (lon2 - lon1) * Math.PI / 180;
+  return R * 2 * Math.asin(Math.sqrt(Math.sin(df / 2) ** 2 + Math.cos(f1) * Math.cos(f2) * Math.sin(dl / 2) ** 2));
+}
+function gcCirclePts(lat, lon, rNm, steps = 48) {
+  const R = 6371, d = rNm * 1.852 / R, pts = [];
+  for (let i = 0; i <= steps; i++) {
+    const b = (i / steps) * 2 * Math.PI, f1 = lat * Math.PI / 180, l1 = lon * Math.PI / 180;
+    const f2 = Math.asin(Math.sin(f1) * Math.cos(d) + Math.cos(f1) * Math.sin(d) * Math.cos(b));
+    const l2 = l1 + Math.atan2(Math.sin(b) * Math.sin(d) * Math.cos(f1), Math.cos(d) - Math.sin(f1) * Math.sin(f2));
+    const rlat = f2 * 180 / Math.PI, rlon = l2 * 180 / Math.PI;
+    if (isFinite(rlat) && isFinite(rlon)) pts.push([rlat, rlon]);
+  }
+  return pts;
+}
+
+// ── Map — with multi-layer click popup ────────────────────────────────────
+let obstMap = null;
+// Registry of all clickable map features: [{latlng, popupHtml, layer}]
+let mapFeatures = [];
+
+// Build a combined popup showing all features within ~px radius of click
+function handleMapClick(e) {
+  if (!obstMap) return;
+  const clickPt = e.latlng;
+  const zoom = obstMap.getZoom();
+  // Tolerance in degrees: ~20px at current zoom
+  const tol = 20 / (256 * Math.pow(2, zoom)) * 360;
+  
+  // Collect all features that contain or are near the click point
+  const hits = [];
+  mapFeatures.forEach(f => {
+    let hit = false;
+    if (f.type === 'marker') {
+      const d = obstMap.distance(clickPt, f.latlng);
+      const pixelDist = d / (40075016.686 * Math.cos(clickPt.lat * Math.PI/180) / (256 * Math.pow(2, zoom)));
+      if (pixelDist < 18) hit = true;
+    } else if (f.type === 'polygon') {
+      // Point-in-polygon test using ray casting
+      hit = pointInPolygon(clickPt, f.latlngs);
+    } else if (f.type === 'polyline') {
+      const d = distToPolyline(clickPt, f.latlngs);
+      if (d < tol * 3) hit = true;
+    }
+    if (hit) hits.push(f);
+  });
+  
+  if (hits.length === 0) return;
+  
+  // Build combined popup
+  let html;
+  if (hits.length === 1) {
+    html = hits[0].popupHtml;
+  } else {
+    html = '<div style="font-size:11px;font-weight:600;color:#666;margin-bottom:6px">'
+      + hits.length + ' NOTAMs at this location:</div>';
+    hits.forEach((f, i) => {
+      html += '<div style="border-top:.5px solid #eee;padding-top:6px;margin-top:6px">'
+        + '<span style="font-size:10px;color:#aaa">(' + (i+1) + '/' + hits.length + ')</span><br>'
+        + f.popupHtml + '</div>';
+    });
+  }
+  L.popup({ maxWidth: 480, maxHeight: 400 })
+    .setLatLng(clickPt)
+    .setContent('<div style="max-height:280px;overflow-y:auto;font-size:12px">' + html + '</div>')
+    .openOn(obstMap);
+}
+
+function pointInPolygon(pt, latlngs) {
+  // Ray casting algorithm
+  let inside = false;
+  const flat = latlngs.flat ? latlngs.flat(Infinity) : latlngs;
+  for (let i = 0, j = flat.length - 1; i < flat.length; j = i++) {
+    const xi = flat[i].lng ?? flat[i].lon ?? flat[i][1], yi = flat[i].lat ?? flat[i][0];
+    const xj = flat[j].lng ?? flat[j].lon ?? flat[j][1], yj = flat[j].lat ?? flat[j][0];
+    const x = pt.lng ?? pt.lon, y = pt.lat;
+    if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) inside = !inside;
+  }
+  return inside;
+}
+
+function distToPolyline(pt, latlngs) {
+  let minD = Infinity;
+  const flat = latlngs.flat ? latlngs.flat(Infinity) : latlngs;
+  for (let i = 0; i < flat.length - 1; i++) {
+    const a = flat[i], b = flat[i+1];
+    const ax = a.lng||a[1], ay = a.lat||a[0], bx = b.lng||b[1], by = b.lat||b[0];
+    const px = pt.lng, py = pt.lat;
+    const dx = bx-ax, dy = by-ay;
+    const t = Math.max(0, Math.min(1, ((px-ax)*dx+(py-ay)*dy)/(dx*dx+dy*dy)));
+    const nx = ax+t*dx - px, ny = ay+t*dy - py;
+    minD = Math.min(minD, Math.sqrt(nx*nx+ny*ny));
+  }
+  return minD;
+}
+
+// Build a rich popup for a map feature: full untruncated iteme, live links, scroll-to anchor
+function mapPopupHtml(n, icao, extraHeader) {
+  const id  = n.number ? (n.series || '') + n.number + '/' + (n.year || '') : '—';
+  const pfx = (icao || '').slice(0, 2).toUpperCase();
+  const anchor = notamAnchor(notamKey(n));
+  const altLine = (n.lower != null)
+    ? '<div style="font-size:10px;color:#555;margin-bottom:2px">'
+      + fmtAltRaw(n.itemf, n.lower) + '–' + fmtAltRaw(n.itemg, n.upper) + '</div>'
+    : '';
+  const body = '<span style="font-size:10px;font-family:monospace;white-space:pre-wrap">'
+    + linkifySupRefs(escH(n.iteme || ''), pfx) + '</span>';
+  const scrollLink = '<div style="margin-top:4px;text-align:right">'
+    + '<a href="#" onclick="if(window.obstMap)window.obstMap.closePopup();setTimeout(function(){var el=document.getElementById(\'' + anchor + '\');if(el){el.scrollIntoView({behavior:\'smooth\',block:\'center\'});}},150);return false;" '
+    + 'style="font-size:10px;color:#1565C0">→ Go to NOTAM in briefing</a></div>';
+  const idLink = '<a href="#" onclick="if(window.obstMap)window.obstMap.closePopup();setTimeout(function(){var el=document.getElementById(\'' + anchor + '\');if(el){el.scrollIntoView({behavior:\'smooth\',block:\'center\'});}},150);return false;" style="color:inherit;text-decoration:none;font-weight:bold">' + escH(id) + '</a>';
+  return '<strong>' + idLink + '</strong> <em>' + escH(icao) + '</em><br>'
+    + (extraHeader || '') + altLine + body + scrollLink;
+}
+
+function registerMarker(latlng, popupHtml) {
+  mapFeatures.push({ type: 'marker', latlng, popupHtml });
+}
+function registerPolygon(latlngs, popupHtml) {
+  mapFeatures.push({ type: 'polygon', latlngs, popupHtml });
+}
+function registerPolyline(latlngs, popupHtml) {
+  mapFeatures.push({ type: 'polyline', latlngs, popupHtml });
+}
+
+// Map background styles. Each has a Leaflet tile URL template, attribution,
+// and a max zoom (Esri layers are limited to 18; CARTO's free tier to 14
+// for these tile sets — keeping 14 as the shared ceiling avoids inconsistent
+// behaviour when switching styles at high zoom).
+const MAP_STYLES = {
+  standard: {
+    label: 'Standard',
+    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    attribution: '© OpenStreetMap contributors © CARTO',
+    options: { maxZoom: 14, subdomains: 'abcd' }
+  },
+  relief: {
+    label: 'Relief',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Shaded_Relief/MapServer/tile/{z}/{y}/{x}',
+    attribution: '© Esri — World Shaded Relief',
+    options: { maxZoom: 13 }
+  },
+  satellite: {
+    label: 'Satellite',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: '© Esri — World Imagery',
+    options: { maxZoom: 18 }
+  },
+  openaip: {
+    label: 'openAIP',
+    // Base: OpenStreetMap (required -- openAIP tiles are an overlay, not a standalone base map)
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '© OpenStreetMap contributors, © openAIP',
+    options: { maxZoom: 17, subdomains: 'abc' },
+    // Overlay: openAIP aviation layer (airspaces, airports, navaids)
+    // Requires OPENAIP_API_KEY -- injected as window._openAipApiKey by the server.
+    overlay: {
+      url: 'https://{s}.api.tiles.openaip.net/api/data/openaip/{z}/{x}/{y}.png',
+      options: { minZoom: 8, minNativeZoom: 8, maxNativeZoom: 16, maxZoom: 20, subdomains: 'abc', opacity: 0.9, tms: false }
+    }
+  }
+};
+let _activeTileLayer = null;
+let _activeOverlayLayer = null;
+function getMapStyle() { return localStorage.getItem('notam_map_style') || 'standard'; }
+function setMapStyle(key) {
+  if (!MAP_STYLES[key]) return;
+  localStorage.setItem('notam_map_style', key);
+  if (obstMap) _applyTileLayer(key);
+  document.querySelectorAll('.map-style-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.style === key);
+  });
+}
+function _applyTileLayer(key) {
+  const style = MAP_STYLES[key] || MAP_STYLES.standard;
+  if (_activeTileLayer)  { try { obstMap.removeLayer(_activeTileLayer);  } catch(e) {} }
+  if (_activeOverlayLayer) { try { obstMap.removeLayer(_activeOverlayLayer); } catch(e) {} _activeOverlayLayer = null; }
+  _activeTileLayer = L.tileLayer(style.url, Object.assign({ attribution: style.attribution }, style.options));
+  _activeTileLayer.addTo(obstMap);
+  if (_activeTileLayer.setZIndex) _activeTileLayer.setZIndex(0);
+  if (style.overlay) {
+    const apiKey = (typeof window !== 'undefined' && window._openAipApiKey) || '';
+    if (apiKey) {
+      const overlayUrl = style.overlay.url + '?apiKey=' + encodeURIComponent(apiKey);
+      _activeOverlayLayer = L.tileLayer(overlayUrl, Object.assign({}, style.overlay.options));
+      _activeOverlayLayer.addTo(obstMap);
+      if (_activeOverlayLayer.setZIndex) _activeOverlayLayer.setZIndex(1);
+    } else {
+      console.warn('[map] openAIP overlay skipped: no OPENAIP_API_KEY configured');
+    }
+  }
+}
+
+// ── All-airports overlay ─────────────────────────────────────────────────────
+// Off by default — opt-in via the map toolbar checkbox. Renders only the
+// airports currently within the visible map bounds (recalculated on every
+// pan/zoom), and only shows ICAO text labels once zoomed in enough for them
+// to be legible and not overwhelming, the same way printed charts do.
+const AIRPORT_LABEL_MIN_ZOOM = 9;
+let _airportLayerOn = false;
+let _airportMarkers = []; // {marker, tooltip} currently on the map, cleared+rebuilt each refresh
+function getAirportLayerOn() { return localStorage.getItem('notam_airport_layer') === '1'; }
+function setAirportLayerOn(on) {
+  _airportLayerOn = on;
+  localStorage.setItem('notam_airport_layer', on ? '1' : '0');
+  _refreshAirportLayer();
+}
+function _airportDotColor(icao) {
+  const nearby = window._nearbyIcaos || [];
+  if (!nearby.includes(icao)) return '#999'; // grey — not in corridor
+  const ad = (window._lastMapArgs && window._lastMapArgs.allApts) ? window._lastMapArgs.allApts[icao] : null;
+  const hasNotams = ad && (ad.total > 0);
+  return hasNotams ? '#1B5E20' : '#A5D6A7'; // dark green : light green
+}
+// ── AZBA/RTBA zone map plotting ───────────────────────────────────────────
+//
+// Loads zone geometry (/azba/zones) and the live activation schedule
+// (/azba/schedule) once per session, draws all 65 RTBA polygons on the map,
+// and shows activation time slots when a zone boundary is clicked.
+//
+// DEBUG MODE: currently always shows ALL zones regardless of the planned
+// flight window, to make visual verification easy. Once confirmed correct,
+// flip _AZBA_SHOW_ALL to false to switch to showing only zones whose
+// activation period intersects [takeoff, takeoff + max duration].
+const _AZBA_SHOW_ALL = true;
+const AZBA_OFFICIAL_MAP_URL = 'https://www.sia.aviation-civile.gouv.fr/azbaEx/';
+// AZBA activation slots are reportedly never published more than ~2 days
+// ahead of time (exact horizon not yet confirmed precisely -- to be
+// fine-tuned once verified against an authoritative source). When the
+// planned takeoff is further out than this, "no active RTBA" can't
+// actually be confirmed -- it just means the relevant slot hasn't been
+// published yet, not that nothing will be active.
+const AZBA_PUBLICATION_HORIZON_DAYS = 2;
+function _azbaBeyondPublicationHorizon() {
+  if (!_briefStart) return false;
+  // Prefer the server-reported endDate (exact, authoritative) over the
+  // hardcoded AZBA_PUBLICATION_HORIZON_DAYS constant (approximate).
+  const window = _azbaSchedule && _azbaSchedule.publication_window;
+  if (window && window.endDate) {
+    return (_briefStart * 1000) > new Date(window.endDate).getTime();
+  }
+  // Fallback: use the hardcoded estimate if the publication window isn't available yet
+  const now = Date.now() / 1000;
+  return (_briefStart - now) > AZBA_PUBLICATION_HORIZON_DAYS * 86400;
+}
+function _azbaHorizonCaveatHtml() {
+  if (!_azbaBeyondPublicationHorizon()) return '';
+  const window = _azbaSchedule && _azbaSchedule.publication_window;
+  let cutoff;
+  if (window && window.endDate) {
+    cutoff = 'until ' + escH(new Date(window.endDate).toUTCString().replace(':00 GMT', ' UTC'));
+  } else {
+    cutoff = 'up to ~' + AZBA_PUBLICATION_HORIZON_DAYS + ' days ahead';
+  }
+  return '<div style="margin-top:4px;font-size:10px;color:inherit;opacity:.85">'
+    + 'Note: AZBA activation slots are only published ' + cutoff + '. '
+    + 'The planned takeoff is beyond that — this data does not yet cover that date.'
+    + '</div>';
+}
+function _azbaOfficialLinkHtml() {
+  return '<div style="margin-top:4px;font-size:10px;color:#555">'
+    + 'Always verify against the official source: '
+    + '<a href="' + escH(AZBA_OFFICIAL_MAP_URL) + '" target="_blank" style="color:#1565C0;text-decoration:underline">'
+    + escH(AZBA_OFFICIAL_MAP_URL) + '</a></div>';
+}
+
+let _azbaZones = null;        // { bareName: {lf_name, common_name, floor, ceiling, polygon, ...} }
+let _azbaSchedule = null;     // result of /azba/schedule: {ok, available, entries, error, ...}
+let _azbaPolygonLayers = [];  // [{layer, label, bareName}] currently drawn, for cleanup on redraw
+let _azbaLoadPromise = null;  // in-flight load, so concurrent callers don't double-fetch
+let _azbaHighlighted = null;  // currently highlighted zone name (yellow border)
+
+async function loadAzbaData(force = false) {
+  if (_azbaLoadPromise && !force) return _azbaLoadPromise;
+  _azbaLoadPromise = (async () => {
+    try {
+      const [zonesResp, schedResp] = await Promise.all([
+        fetch('/azba/zones').then(r => r.json()),
+        fetch('/azba/schedule').then(r => r.json()),
+      ]);
+      _azbaZones = zonesResp.zones || {};
+      _azbaSchedule = schedResp;
+      console.log('[azba] loaded', Object.keys(_azbaZones).length, 'zones; schedule available =', schedResp.available);
+      if (!schedResp.available) {
+        console.warn('[azba] schedule NOT available --', schedResp.error);
+      }
+      if (schedResp.debug) {
+        console.log('[azba] schedule fetch debug:', schedResp.debug);
+        if (schedResp.debug.http_status) console.log('[azba]   HTTP status:', schedResp.debug.http_status);
+        if (schedResp.debug.response_headers) console.log('[azba]   response headers:', schedResp.debug.response_headers);
+        if (schedResp.debug.response_snippet) console.log('[azba]   content snippet:', schedResp.debug.response_snippet.slice(0, 300));
+        if (schedResp.debug.exception_type) console.log('[azba]   exception type:', schedResp.debug.exception_type);
+      }
+    } catch (e) {
+      console.error('[azba] loadAzbaData failed:', e);
+      _azbaZones = _azbaZones || {};
+      _azbaSchedule = { ok: false, available: false, entries: [], error: String(e) };
+    }
+    return { zones: _azbaZones, schedule: _azbaSchedule };
+  })();
+  return _azbaLoadPromise;
+}
+
+function _azbaEntriesForZone(bareName) {
+  if (!_azbaSchedule || !_azbaSchedule.available) return [];
+  return (_azbaSchedule.entries || []).filter(e => e.zone === bareName);
+}
+
+function _azbaFmtTime(iso) {
+  if (!iso) return '?';
+  try {
+    const d = new Date(iso);
+    return d.getUTCHours().toString().padStart(2,'0') + ':'
+         + d.getUTCMinutes().toString().padStart(2,'0') + ' UTC';
+  } catch(e) { return iso; }
+}
+
+function _azbaZoneIntersectsFlight(bareName) {
+  const entries = _azbaEntriesForZone(bareName);
+  if (!entries.length) return false;
+  if (!_briefStart || !_briefEnd) return false;
+  const flightStart = _briefStart * 1000;
+  const flightEnd   = _briefEnd   * 1000;
+  return entries.some(e => {
+    const slotStart = e.debut ? new Date(e.debut).getTime() : 0;
+    const slotEnd   = e.fin   ? new Date(e.fin).getTime()   : 0;
+    if (!slotStart || !slotEnd) return false;
+    return slotStart < flightEnd && slotEnd > flightStart;
+  });
+}
+
+
+function _azbaPopupHtml(bareName) {
+  const z = _azbaZones[bareName];
+  if (!z) return '';
+  const entries = _azbaEntriesForZone(bareName);
+  let schedHtml;
+  if (!_azbaSchedule || !_azbaSchedule.ok || !_azbaSchedule.available) {
+    schedHtml = '<div style="color:#999;font-style:italic">Activation schedule unavailable'
+      + (_azbaSchedule && _azbaSchedule.source_url ? ' — <a href="' + escH(_azbaSchedule.source_url) + '" target="_blank">check manually</a>' : '')
+      + '</div>';
+  } else if (!entries.length) {
+    schedHtml = '<div style="color:#2E7D32">Not active in the current publication window</div>';
+  } else {
+    schedHtml = entries.map(e =>
+      '<div>' + escH(_azbaFmtTime(e.debut)) + ' – ' + escH(_azbaFmtTime(e.fin)) + '</div>'
+    ).join('');
+  }
+  // Use AZBA official name if available from schedule entries (may differ from
+  // openAIP name, e.g. entries show LFR145B while our geometry key is R145).
+  const displayLfName = (entries.length && entries[0].lf_name) ? entries[0].lf_name : z.lf_name;
+  const displayBareName = (entries.length && entries[0].zone_azba) ? entries[0].zone_azba : bareName;
+  return '<div style="font-size:12px;line-height:1.5">'
+    + '<div style="font-weight:600">' + escH(displayLfName) + ' (' + escH(displayBareName) + ')</div>'
+    + '<div style="color:#555">' + escH(z.common_name) + '</div>'
+    + '<div>' + escH(_formatLimitShort(z.floor)) + ' – ' + escH(_formatLimitShort(z.ceiling)) + '</div>'
+    + '<div style="margin-top:4px;font-weight:600">Activation:</div>'
+    + schedHtml
+    + _azbaOfficialLinkHtml()
+    + '</div>';
+}
+
+// ── RTBA zone grouping ──────────────────────────────────────────────────────
+// Only two specific cases get a shared stacked label:
+// 1. R45B + R45S3: identical polygons, one directly above the other
+//    (SFC–800ft AGL and 800ft AGL–FL65 respectively)
+// 2. R45A + R45S2: R45A sits entirely inside R45S2, same vertical relationship
+// All other zones get individual labels, even if they happen to be vertically
+// adjacent in the airspace structure -- grouping those produces confusing tags
+// (e.g. R46F1/R46F2/R46N1 share a floor/ceiling value but cover different areas).
+const _AZBA_EXPLICIT_STACKS = [
+  ['R45S3', 'R45B'],   // R45S3 on top (FL65/800ft AGL), R45B below (800ft AGL/SFC)
+  ['R45S2', 'R45A'],   // R45S2 on top (FL65/800ft AGL), R45A below (800ft AGL/SFC)
+];
+
+// Manual centroid offsets [deltaLat, deltaLon] for zones whose labels visually
+// collide at typical zoom levels despite being separate zones.
+const _AZBA_LABEL_OFFSETS = {
+  'R139A': [-0.04, -0.05],
+  'R139B': [ 0.04,  0.05],
+};
+
+function _azbaGroupZones(visibleNames) {
+  const visibleSet = new Set(visibleNames);
+  const grouped = new Set();
+  const groups = [];
+
+  // Apply explicit stacks first
+  _AZBA_EXPLICIT_STACKS.forEach(stack => {
+    const members = stack.filter(n => visibleSet.has(n));
+    if (members.length < 2) {
+      // Only one zone in this stack is visible -- treat each as a solo zone below
+      return;
+    }
+    members.forEach(n => grouped.add(n));
+    // Label position: centroid of the innermost (last/bottom) zone
+    const innermost = members[members.length - 1];
+    const pts = _azbaZones[innermost].polygon;
+    const lat = pts.reduce((s, p) => s + p[0], 0) / pts.length;
+    const lon = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+    groups.push({ members, lat, lon });
+  });
+
+  // All remaining zones get individual labels
+  visibleNames.forEach(name => {
+    if (grouped.has(name)) return;
+    const pts = _azbaZones[name].polygon;
+    let lat = pts.reduce((s, p) => s + p[0], 0) / pts.length;
+    let lon = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+    const off = _AZBA_LABEL_OFFSETS[name];
+    if (off) { lat += off[0]; lon += off[1]; }
+    groups.push({ members: [name], lat, lon });
+  });
+
+  return groups;
+}
+
+
+function _azbaColors(isSfc, isActive) {
+  // Non-SFC: light blue / light red
+  // SFC: noticeably darker blue / darker red, higher opacity
+  if (isActive) return { stroke: isSfc ? '#B71C1C' : '#C62828', fill: isSfc ? '#C62828' : '#EF5350', opacity: isSfc ? 0.35 : 0.14 };
+  return          { stroke: isSfc ? '#0D47A1' : '#1565C0', fill: isSfc ? '#1565C0' : '#90CAF9', opacity: isSfc ? 0.35 : 0.14 };
+}
+
+function _azbaStackedLabelHtml(group) {
+  // Build a stacked label: ceiling / name / floor for each zone, top→bottom.
+  // Adjacent zones share a boundary value so it appears only once.
+  const lines = [];
+  group.members.forEach((name, i) => {
+    const z = _azbaZones[name];
+    const isActive = _azbaZoneIntersectsFlight(name);
+    const isSfc    = z.floor && z.floor.value === 0 && z.floor.reference === 'GND';
+    const cols     = _azbaColors(isSfc, isActive);
+    const ceiling  = _formatLimitShort(z.ceiling);
+    const floor    = _formatLimitShort(z.floor);
+    // Use the AZBA official name (from schedule entries) when available --
+    // openAIP's geometry key (e.g. R145) can differ from the official SIA
+    // naming (e.g. R145B) for the same physical zone.
+    const entries = _azbaEntriesForZone(name);
+    const displayName = (entries.length && entries[0].zone_azba) ? entries[0].zone_azba : name;
+    if (i === 0) {
+      lines.push('<span style="font-weight:400;color:' + cols.stroke + '">' + escH(ceiling) + '</span>');
+    }
+    lines.push('<span class="azba-label-name" data-zone="' + escH(name) + '" style="font-weight:700;color:'
+      + cols.stroke + ';cursor:pointer;text-decoration:underline dotted">' + escH(displayName) + '</span>');
+    lines.push('<span style="font-weight:400;color:' + cols.stroke + '">' + escH(floor) + '</span>');
+  });
+  return '<div style="font-size:9px;text-align:center;line-height:1.4;'
+    + 'text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;white-space:nowrap">'
+    + lines.join('<br>') + '</div>';
+}
+
+function _azbaHighlightZone(bareName) {
+  if (_azbaHighlighted) {
+    const prev = _azbaPolygonLayers.find(l => l.bareName === _azbaHighlighted);
+    if (prev) {
+      const z = _azbaZones[_azbaHighlighted];
+      const isSfc    = z && z.floor && z.floor.value === 0 && z.floor.reference === 'GND';
+      const isActive = _azbaZoneIntersectsFlight(_azbaHighlighted);
+      const cols     = _azbaColors(isSfc, isActive);
+      prev.layer.setStyle({ color: cols.stroke, weight: 2 });
+    }
+    if (_azbaHighlighted === bareName) { _azbaHighlighted = null; return; }
+  }
+  _azbaHighlighted = bareName;
+  const entry = _azbaPolygonLayers.find(l => l.bareName === bareName);
+  if (entry) entry.layer.setStyle({ color: '#FFD600', weight: 6 });
+}
+
+function renderAzbaZones() {
+  if (!obstMap || !_azbaZones) return;
+
+  _azbaPolygonLayers.forEach(({ layer, label }) => {
+    try { obstMap.removeLayer(layer); } catch(e) {}
+    if (label) { try { obstMap.removeLayer(label); } catch(e) {} }
+  });
+  _azbaPolygonLayers = [];
+  _azbaHighlighted = null;
+
+  const visibleNames = Object.keys(_azbaZones).filter(name => {
+    const z = _azbaZones[name];
+    if (!z.polygon || z.polygon.length < 3) return false;
+    return _AZBA_SHOW_ALL || _azbaZoneIntersectsFlight(name);
+  });
+
+  // Draw polygons -- non-interactive fill so clicks reach NOTAM zones underneath.
+  // Registered in mapFeatures so handleMapClick handles them alongside NOTAMs.
+  visibleNames.forEach(bareName => {
+    const z = _azbaZones[bareName];
+    const isSfc    = z.floor && z.floor.value === 0 && z.floor.reference === 'GND';
+    const isActive = _azbaZoneIntersectsFlight(bareName);
+    const cols     = _azbaColors(isSfc, isActive);
+
+    const latlngs = z.polygon.map(([lat, lon]) => [lat, lon]);
+    const layer = L.polygon(latlngs, {
+      color: cols.stroke, weight: 2,
+      fillColor: cols.fill, fillOpacity: cols.opacity,
+      pane: 'azbaPane', interactive: false,
+    }).addTo(obstMap);
+
+    // Register all visible zones in mapFeatures so clicking any zone shows a popup.
+    // The popup content varies: active zones show activation slots, inactive zones
+    // show "not active" with the official link. Schedule-unavailable zones show
+    // the manual-check message. Use a getter so popup is computed at click time.
+    const _bareName = bareName;
+    mapFeatures.push({
+      type: 'polygon',
+      _isAzba: true,
+      _azbaName: _bareName,
+      latlngs: latlngs.map(([lat, lon]) => ({ lat, lng: lon })),
+      get popupHtml() { return _azbaPopupHtml(_bareName); },
+    });
+
+    _azbaPolygonLayers.push({ layer, label: null, bareName });
+  });
+
+  // Draw stacked labels, one per geographic group
+  const groups = _azbaGroupZones(visibleNames);
+  groups.forEach(({ members, lat, lon }) => {
+    const lineCount = members.length * 2 + 1;
+    const iconH = lineCount * 13 + 4;
+    const label = L.marker([lat, lon], {
+      pane: 'azbaPane', interactive: true,
+      icon: L.divIcon({
+        className: '',
+        html: _azbaStackedLabelHtml({ members }),
+        iconSize:   [72, iconH],
+        iconAnchor: [36, Math.round(iconH / 2)],
+      }),
+    }).addTo(obstMap);
+
+    label.on('click', function(e) {
+      L.DomEvent.stopPropagation(e);
+      const target = e.originalEvent && e.originalEvent.target;
+      const nameEl = target && target.closest && target.closest('[data-zone]');
+      const zoneName = nameEl ? nameEl.dataset.zone : (members.length === 1 ? members[0] : null);
+      if (zoneName) _azbaHighlightZone(zoneName);
+    });
+
+    const entry = _azbaPolygonLayers.find(l => l.bareName === members[0]);
+    if (entry) entry.label = label;
+  });
+
+  console.log('[azba] rendered', _azbaPolygonLayers.length, 'zone(s),', groups.length, 'label group(s) (show-all =', _AZBA_SHOW_ALL, ')');
+}
+
+// "No active RTBA during planned flight" or a list of intersecting zone
+// identifiers with their activation periods. Returns plain text/HTML
+// fragment for insertion -- does not touch the DOM itself.
+// Returns a formatted UTC string like "20/06/2026, 07:29z" from an ISO8601 date.
+function _azbaFmtEndDate(iso) {
+  if (!iso) return '?';
+  try {
+    const d = new Date(iso);
+    const dd   = String(d.getUTCDate()).padStart(2, '0');
+    const mm   = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const yyyy = d.getUTCFullYear();
+    const hh   = String(d.getUTCHours()).padStart(2, '0');
+    const min  = String(d.getUTCMinutes()).padStart(2, '0');
+    return `${dd}/${mm}/${yyyy}, ${hh}:${min}z`;
+  } catch(e) { return iso; }
+}
+
+// True if the planned flight end (_briefEnd) goes beyond the publication window.
+function _azbaFlightExceedsWindow() {
+  if (!_briefEnd) return false;
+  const pub = _azbaSchedule && _azbaSchedule.publication_window;
+  if (!pub || !pub.endDate) return false;
+  return (_briefEnd * 1000) > new Date(pub.endDate).getTime();
+}
+
+function azbaStatusHtml() {
+  if (!_azbaSchedule || !_azbaSchedule.ok || !_azbaSchedule.available) {
+    return '<div class="lcard" style="-webkit-column-span:all;column-span:all;break-before:avoid;font-size:11px;color:#E65100;background:#FFF3E0;border-left:3px solid #E65100;padding:6px 10px;border-radius:6px">'
+      + '⚠️ AZBA data unavailable — RTBA activations are not shown on the map.'
+      + _azbaOfficialLinkHtml()
+      + '</div>';
+  }
+
+  if (!_azbaZones) return '';
+  const intersecting = Object.keys(_azbaZones).filter(_azbaZoneIntersectsFlight);
+
+  if (!intersecting.length) {
+    const exceedsWindow = _azbaFlightExceedsWindow();
+    const window = _azbaSchedule && _azbaSchedule.publication_window;
+    if (exceedsWindow) {
+      const endFmt = window ? _azbaFmtEndDate(window.endDate) : '?';
+      return '<div class="lcard" style="-webkit-column-span:all;column-span:all;break-before:avoid;font-size:11px;color:#7B5800;background:#FFFDE7;border-left:3px solid #F9A825;padding:6px 10px;border-radius:6px">'
+        + '⚠ No active RTBA during the published period of the planned flight'
+        + '<div style="margin-top:3px">Caution: AZBA publication only extends up to ' + escH(endFmt) + '</div>'
+        + _azbaHorizonCaveatHtml()
+        + _azbaOfficialLinkHtml()
+        + '</div>';
+    }
+    return '<div class="lcard" style="-webkit-column-span:all;column-span:all;break-before:avoid;font-size:11px;color:#2E7D32;background:#E8F5E9;border-left:3px solid #2E7D32;padding:6px 10px;border-radius:6px">'
+      + '✓ No active RTBA during planned flight'
+      + _azbaHorizonCaveatHtml()
+      + _azbaOfficialLinkHtml()
+      + '</div>';
+  }
+
+  const rows = intersecting.map(bareName => {
+    const z = _azbaZones[bareName];
+    const entries = _azbaEntriesForZone(bareName);
+    return entries.map(e => {
+      const displayLf   = e.lf_name   || z.lf_name;
+      const displayName = e.zone_azba || bareName;
+      return {
+        sortKey: e.debut,
+        html: '<div>' + escH(displayLf) + ' — '
+          + escH(_azbaFmtTime(e.debut)) + ' / ' + escH(_azbaFmtTime(e.fin))
+          + '</div>',
+      };
+    });
+  }).flat();
+
+  // Sort chronologically: earliest start first, then latest end
+  rows.sort((a, b) => a.sortKey < b.sortKey ? -1 : a.sortKey > b.sortKey ? 1 : 0);
+
+  const mapBadge = ' <span class="nbadge mapped-badge" style="cursor:pointer" '
+    + 'onclick="event.stopPropagation();_azbaOpenFullscreenMap()" '
+    + 'title="Open full screen map centred on active RTBA zones">📍 map</span>';
+
+  return '<div class="lcard azba-active-card" style="-webkit-column-span:all;column-span:all;break-before:avoid;font-size:11px;color:#C62828;background:#FFEBEE;border-left:3px solid #C62828;padding:6px 10px;border-radius:6px">'
+    + '<div style="font-weight:600;margin-bottom:2px">⚠️ Active RTBA during planned flight:' + mapBadge + '</div>'
+    + rows.map(r => r.html).join('')
+    + _azbaHorizonCaveatHtml()
+    + _azbaOfficialLinkHtml()
+    + '</div>';
+}
+
+function _azbaFocusActive() {
+  if (!obstMap || !_azbaZones) return;
+  const active = Object.keys(_azbaZones).filter(_azbaZoneIntersectsFlight);
+  if (!active.length) return;
+  let latMin = 90, latMax = -90, lonMin = 180, lonMax = -180;
+  active.forEach(name => {
+    (_azbaZones[name].polygon || []).forEach(([lat, lon]) => {
+      if (lat < latMin) latMin = lat; if (lat > latMax) latMax = lat;
+      if (lon < lonMin) lonMin = lon; if (lon > lonMax) lonMax = lon;
+    });
+  });
+  if (latMin > latMax) return;
+  obstMap.fitBounds([[latMin, lonMin], [latMax, lonMax]], { padding: [30, 30], maxZoom: 10 });
+}
+
+function _azbaOpenFullscreenMap() {
+  if (!obstMap || !_azbaZones) return;
+  // Compute center/zoom for all active zones
+  const active = Object.keys(_azbaZones).filter(_azbaZoneIntersectsFlight);
+  if (active.length) {
+    let latMin = 90, latMax = -90, lonMin = 180, lonMax = -180;
+    active.forEach(name => {
+      (_azbaZones[name].polygon || []).forEach(([lat, lon]) => {
+        if (lat < latMin) latMin = lat; if (lat > latMax) latMax = lat;
+        if (lon < lonMin) lonMin = lon; if (lon > lonMax) lonMax = lon;
+      });
+    });
+    if (latMin <= latMax) {
+      // Temporarily fit the map to active zones so openMapFullscreen captures the right view
+      const prevCenter = obstMap.getCenter(), prevZoom = obstMap.getZoom();
+      obstMap.fitBounds([[latMin, lonMin], [latMax, lonMax]], { padding: [30, 30], maxZoom: 10, animate: false });
+      openMapFullscreen();
+      // Restore the original view immediately (the fullscreen tab captures state synchronously)
+      obstMap.setView(prevCenter, prevZoom, { animate: false });
+      return;
+    }
+  }
+  openMapFullscreen();
+}
+
+function insertAzbaStatus() {
+  // Remove any previous card (covers all status states)
+  document.querySelectorAll('.azba-status-card').forEach(el => el.remove());
+  if (!_azbaSchedule && !_azbaZones) return;
+
+  const resultsEl = document.getElementById('results');
+  if (!resultsEl || !resultsEl.children.length) return;
+
+  const html = azbaStatusHtml();
+  if (!html) return;
+  // Insert the sentinel class into the first div's class attribute reliably
+  const wrapped = html.replace(/^<div class="lcard/, '<div class="lcard azba-status-card');
+  const aisRef = document.getElementById('ais-check-lcard')
+              || document.getElementById('aip-sup-lcard');
+  if (aisRef) aisRef.insertAdjacentHTML('beforebegin', wrapped);
+  else resultsEl.insertAdjacentHTML('beforeend', wrapped);
+}
+
+function _refreshAirportLayer() {
+  if (!obstMap) return;
+  // Clear previously drawn markers/labels
+  _airportMarkers.forEach(({ marker, tooltip }) => {
+    try { obstMap.removeLayer(marker); } catch(e) {}
+    if (tooltip) { try { obstMap.removeLayer(tooltip); } catch(e) {} }
+  });
+  _airportMarkers = [];
+  if (!_airportLayerOn || !_airportDb) return;
+
+  const bounds = obstMap.getBounds();
+  const zoom = obstMap.getZoom();
+  const showLabels = zoom >= AIRPORT_LABEL_MIN_ZOOM;
+
+  for (const icao in _airportDb) {
+    const a = _airportDb[icao];
+    if (!a || typeof a.lat !== 'number' || typeof a.lon !== 'number') continue;
+    if (!bounds.contains([a.lat, a.lon])) continue;
+    const color = _airportDotColor(icao);
+    const marker = L.circleMarker([a.lat, a.lon], {
+      pane: 'airportPane', radius: 3, weight: 1,
+      color: color, fillColor: color, fillOpacity: .9, interactive: false
+    }).addTo(obstMap);
+    let tooltip = null;
+    if (showLabels) {
+      tooltip = L.tooltip({
+        permanent: true, direction: 'right', offset: [4, 0], opacity: .85,
+        pane: 'airportLabelPane', className: 'airport-db-label'
+      }).setContent(icao).setLatLng([a.lat, a.lon]).addTo(obstMap);
+    }
+    _airportMarkers.push({ marker, tooltip });
+  }
+}
+
+function renderObstMap(allApts, thresh, coordMap, radiusNm, legPairs) {
+  window._lastMapArgs = { allApts, thresh, coordMap, radiusNm, legPairs };
+  const el = document.getElementById('obstmap');
+  if (!el) return;
+  if (obstMap) { try { obstMap.remove(); } catch(e) {} obstMap = null; }
+
+  mapFeatures = []; // reset registry
+
+  obstMap = L.map('obstmap', { zoomSnap: 0.1, zoomDelta: 0.5 });
+  obstMap.setView([46.5, 2.5], 6); // neutral default; overridden by fitBounds or setView below
+  window.obstMap = obstMap; // expose for the map page's separate <script> block
+  // Custom panes: airport dots below zones below obstacles below labels
+  obstMap.createPane('airportPane');    obstMap.getPane('airportPane').style.zIndex    = 250;
+  obstMap.createPane('airportLabelPane'); obstMap.getPane('airportLabelPane').style.zIndex = 260;
+  obstMap.createPane('azbaPane');       obstMap.getPane('azbaPane').style.zIndex       = 300;
+  obstMap.createPane('azbaLabelPane');  obstMap.getPane('azbaLabelPane').style.zIndex  = 310;
+  obstMap.createPane('zonesPane');      obstMap.getPane('zonesPane').style.zIndex      = 350;
+  obstMap.createPane('zoneLabelPane'); obstMap.getPane('zoneLabelPane').style.zIndex  = 450;
+  obstMap.createPane('obstPane');      obstMap.getPane('obstPane').style.zIndex       = 550;
+  obstMap.createPane('obstLabelPane'); obstMap.getPane('obstLabelPane').style.zIndex  = 650;
+  // Disable pointer events on label panes so clicks pass through to map
+  obstMap.getPane('zoneLabelPane').style.pointerEvents = 'none';
+  obstMap.getPane('obstLabelPane').style.pointerEvents = 'none';
+  obstMap.getPane('airportLabelPane').style.pointerEvents = 'none';
+  obstMap.getPane('azbaLabelPane').style.pointerEvents = 'none';
+  obstMap.on('moveend zoomend', function() {
+    window._mapCenter  = obstMap.getCenter();
+    window._mapZoom    = obstMap.getZoom();
+    window._mapScreenW = obstMap.getContainer().offsetWidth;
+    window._mapScreenH = obstMap.getContainer().offsetHeight;
+    _refreshAirportLayer();
+  });
+  // Background tile layer — style chosen via the map-style switcher (saved
+  // in localStorage), defaulting to the standard CARTO light style.
+  _applyTileLayer(getMapStyle());
+  // All-airports overlay — off by default, restored from localStorage.
+  // Initial refresh happens once fitBounds/setView settles the view (the
+  // moveend/zoomend handler above calls _refreshAirportLayer on every
+  // subsequent pan/zoom too).
+  _airportLayerOn = getAirportLayerOn();
+  obstMap.whenReady(function() { setTimeout(_refreshAirportLayer, 0); });
+
+  // AZBA/RTBA zones — always shown when data is available (no toggle).
+  // Data is loaded once per session (loadAzbaData caches its promise), but
+  // the polygons themselves need redrawing every time renderObstMap runs,
+  // since the whole Leaflet map instance gets recreated above.
+  obstMap.whenReady(function() {
+    loadAzbaData().then(function() {
+      renderAzbaZones();
+      insertAzbaStatus();
+    });
+  });
+
+  // Single unified click handler for all features
+  obstMap.on('click', handleMapClick);
+
+  const markers = [];
+  // Waypoint labels
+  for (const [icao, c] of Object.entries(coordMap)) {
+    L.circleMarker([c.lat, c.lon], { radius: 5, fillColor: '#1565C0', color: '#0D47A1', weight: 2, fillOpacity: .9, interactive: false }).addTo(obstMap);
+    L.tooltip({ permanent: true, direction: 'top', offset: [0, -8], opacity: .9, pane: 'zoneLabelPane' }).setContent(icao).setLatLng([c.lat, c.lon]).addTo(obstMap);
+    markers.push(L.circleMarker([c.lat, c.lon]));
+  }
+  // Corridor: faint circles along each leg
+  for (const [,, ca, cb] of legPairs) {
+    const distNm = haversineNm(ca.lat, ca.lon, cb.lat, cb.lon);
+    const step = Math.max(radiusNm / 2, 5);
+    const nS = distNm < 0.1 ? 0 : Math.max(Math.ceil(distNm / step), 1);
+    for (let i = 0; i <= nS; i++) {
+      const t = nS === 0 ? 0 : i / nS;
+      const lat = ca.lat + t * (cb.lat - ca.lat);
+      const lon = ca.lon + t * (cb.lon - ca.lon);
+      if (!isFinite(lat) || !isFinite(lon)) continue;
+      L.circle([lat, lon], {
+        radius: radiusNm * 1852,
+        color: '#1565C0', weight: 0.8, fillColor: '#1565C0', fillOpacity: .03,
+        dashArray: '3,5', interactive: false
+      }).addTo(obstMap);
+    }
+  }
+
+
+  // Obstacle markers — collect, sort by elevation asc so highest plots last (on top)
+  const _obstList = [];
+  for (const [icao, ad] of Object.entries(allApts)) {
+    for (const n of (ad.notams || [])) {
+      if (!isObstacle(n)) continue;
+      const d = obstData(n);
+      if (!d) continue;
+      _obstList.push({ icao, n, d });
+    }
+  }
+  _obstList.sort((a, b) => (a.d.elev ?? a.d.hgt ?? 0) - (b.d.elev ?? b.d.hgt ?? 0));
+  for (const { icao, n, d } of _obstList) {
+    {
+      // For multi-point obstacles, each point gets its own height/elevation
+      // for sizing/coloring/labels. For single-point obstacles, fall back
+      // to the shared d.hgt/d.elev exactly as before.
+      const effectiveHgt = d.maxHgt != null ? d.maxHgt : d.hgt;
+      const big = (effectiveHgt || 0) >= thresh;
+      const id = n.number ? (n.series || '') + n.number + '/' + (n.year || '') : '—';
+      const _altStr = d.elev != null
+        ? '<strong style="color:' + (big ? '#D32F2F' : '#EF6C00') + '">' + d.elev + ' ft AMSL</strong>' + (d.hgt != null ? ' <span style="font-size:10px;color:#888">(' + d.hgt + ' ft AGL)</span>' : '') + '<br>'
+        : (d.hgt != null ? '<strong style="color:' + (big ? '#D32F2F' : '#EF6C00') + '">' + d.hgt + ' ft AGL</strong><br>' : 'Elevation unknown<br>');
+      const popupHtml = mapPopupHtml(n, icao, _altStr);
+      if (d.perPoint && d.perPoint.length > 0) {
+        // Multi-point: plot each obstacle with its own hgt/elev
+        d.perPoint.forEach(p => {
+          if (!isFinite(p.lat) || !isFinite(p.lon)) return;
+          const pBig = (p.hgt || 0) >= thresh;
+          const marker = L.circleMarker([p.lat, p.lon], { pane: 'obstPane',
+            radius: pBig ? 9 : 6,
+            fillColor: pBig ? '#D32F2F' : '#EF6C00',
+            color: pBig ? '#7f0000' : '#7f3a00',
+            weight: 2, fillOpacity: .9, interactive: false
+          }).addTo(obstMap);
+          if (p.hgt != null || p.elev != null) {
+            const _lbl = p.elev != null ? p.elev + ' ft' : p.hgt + ' ft AGL';
+            L.tooltip({
+              permanent: true, direction: 'right', offset: [6, 0], opacity: 0.85,
+              className: 'obst-alt-label', pane: 'obstLabelPane'
+            }).setContent('<span style="font-size:9px;font-weight:600;color:' + (pBig ? '#D32F2F' : '#EF6C00') + ';white-space:pre">' + _lbl + '</span>')
+              .setLatLng([p.lat, p.lon]).addTo(obstMap);
+          }
+          const pAltStr = p.elev != null
+            ? '<strong style="color:' + (pBig ? '#D32F2F' : '#EF6C00') + '">' + p.elev + ' ft AMSL</strong>' + (p.hgt != null ? ' <span style="font-size:10px;color:#888">(' + p.hgt + ' ft AGL)</span>' : '') + '<br>'
+            : (p.hgt != null ? '<strong style="color:' + (pBig ? '#D32F2F' : '#EF6C00') + '">' + p.hgt + ' ft AGL</strong><br>' : 'Elevation unknown<br>');
+          registerMarker({lat: p.lat, lng: p.lon}, mapPopupHtml(n, icao, pAltStr));
+          markers.push(marker);
+        });
+      } else {
+      const coordsToPlot = (d.allCoords && d.allCoords.length > 0) ? d.allCoords : (d.coords ? [[d.coords.lat, d.coords.lon]] : []);
+      coordsToPlot.forEach(([lat, lon]) => {
+        if (!isFinite(lat) || !isFinite(lon)) return;
+        const marker = L.circleMarker([lat, lon], { pane: 'obstPane',
+          radius: big ? 9 : 6,
+          fillColor: big ? '#D32F2F' : '#EF6C00',
+          color: big ? '#7f0000' : '#7f3a00',
+          weight: 2, fillOpacity: .9, interactive: false
+        }).addTo(obstMap);
+        if (d.hgt != null || d.elev != null) {
+          const _lbl = d.elev != null ? d.elev + ' ft' : d.hgt + ' ft AGL';
+          L.tooltip({
+            permanent: true, direction: 'right', offset: [6, 0], opacity: 0.85,
+            className: 'obst-alt-label', pane: 'obstLabelPane'
+          }).setContent('<span style="font-size:9px;font-weight:600;color:' + (big ? '#D32F2F' : '#EF6C00') + ';white-space:pre">' + _lbl + '</span>')
+            .setLatLng([lat, lon]).addTo(obstMap);
+        }
+        registerMarker({lat, lng: lon}, popupHtml);
+        markers.push(marker);
+      });
+      }
+      // If multiple points, also draw a polyline connecting them
+      const _connectCoords = (d.perPoint && d.perPoint.length > 0)
+        ? d.perPoint.map(p => [p.lat, p.lon])
+        : ((d.allCoords && d.allCoords.length > 0) ? d.allCoords : (d.coords ? [[d.coords.lat, d.coords.lon]] : []));
+      if (_connectCoords.length > 1) {
+        const ll = _connectCoords.map(([lat,lon])=>({lat,lng:lon}));
+        L.polyline(_connectCoords, { color: big ? '#D32F2F' : '#EF6C00', weight: 1.5, opacity: .5, dashArray: '3,4', interactive: false }).addTo(obstMap);
+        registerPolyline(ll, popupHtml);
+      }
+    }
+  }
+
+  // Cable car zones (green polylines with buffer)
+  for (const [icao, ad] of Object.entries(allApts)) {
+    for (const n of (ad.notams || [])) {
+      if (!isCableCarZone(n)) continue;
+      if (isChecklist(n) || shouldHideByRules(n) || shouldHideByAltitude(n)) continue;
+      try {
+        const pts = parseCableCar(n);
+        if (pts.length < 2) continue;
+        const id = n.number ? (n.series || '') + n.number + '/' + (n.year || '') : '—';
+        // Draw the cable as a thick green polyline
+        const cablePopup = mapPopupHtml(n, icao);
+        L.polyline(pts, { color: '#2E7D32', weight: 4, opacity: .8, interactive: false }).addTo(obstMap);
+        const cableLL = pts.map(p=>({lat:p[0],lng:p[1]}));
+        registerPolyline(cableLL, cablePopup);
+        pts.forEach(p => {
+          L.circleMarker(p, { radius: 5, fillColor: '#2E7D32', color: '#1B5E20', weight: 2, fillOpacity: .9, interactive: false }).addTo(obstMap);
+          registerMarker({lat:p[0],lng:p[1]}, cablePopup);
+          markers.push(L.circleMarker(p));
+        });
+      } catch(e) {}
+    }
+  }
+
+  // Inline polygon zones (ZRT/ZDT/sector/comma-coord style)
+  for (const [icao, ad] of Object.entries(allApts)) {
+    for (const n of (ad.notams || [])) {
+      if (!isInlinePolygon(n) || isObstacle(n) || isAxisZone(n) || isCableCarZone(n)) continue;
+      if (isChecklist(n) || shouldHideByRules(n) || shouldHideByAltitude(n)) continue;
+      try {
+        const id = n.number ? (n.series||'')+n.number+'/'+(n.year||'') : '—';
+        const popupBase = '<strong>' + escH(id) + '</strong> <em>' + escH(icao) + '</em><br>';
+        // Try named polygon groups first (ZRT/ZDT)
+        const groups = extractPolygons(n.iteme||'');
+        let drawn = false;
+        groups.forEach(({name, pts}) => {
+          if (pts.length < 3) return;
+          const ph = mapPopupHtml(n, icao) + (name ? '<em>'+escH(name)+'</em><br>' : '');
+          L.polygon(pts, { color:'#2E7D32', weight:2, fillColor:'#4CAF50', fillOpacity:.18, interactive:false, pane:'zonesPane' }).addTo(obstMap);
+          const ll = pts.map(p=>({lat:p[0],lng:p[1]}));
+          registerPolygon(ll, ph);
+          pts.forEach(p => markers.push(L.circleMarker(p)));
+          const [clat, clon] = polyCentroid(pts);
+          const altLbl = zoneAltLabel(n);
+          const nameLbl = name ? name.split(' ').slice(-1)[0] : null; // last word = sector ID
+          const combinedLbl = [nameLbl, altLbl].filter(Boolean).join(' ');
+          addZoneLabel(clat, clon, combinedLbl || null, '#2E7D32');
+          drawn = true;
+        });
+        // Fallback: comma-coord format
+        if (!drawn) {
+          const pts2 = parseCommaCoords(n.iteme||'');
+          if (pts2.length >= 3) {
+            const ph2 = mapPopupHtml(n, icao);
+            L.polygon(pts2, { color:'#2E7D32', weight:2, fillColor:'#4CAF50', fillOpacity:.18, interactive:false, pane:'zonesPane' }).addTo(obstMap);
+            const ll2 = pts2.map(p=>({lat:p[0],lng:p[1]}));
+            registerPolygon(ll2, ph2);
+            pts2.forEach(p => markers.push(L.circleMarker(p)));
+            const [clat2, clon2] = polyCentroid(pts2);
+            addZoneLabel(clat2, clon2, zoneAltLabel(n), '#2E7D32');
+          }
+        }
+      } catch(e) {}
+    }
+  }
+
+  // Axis zones (green rotated rectangles)
+  for (const [icao, ad] of Object.entries(allApts)) {
+    for (const n of (ad.notams || [])) {
+      if (!isAxisZone(n)) continue;
+      if (isChecklist(n) || shouldHideByRules(n) || shouldHideByAltitude(n)) continue;
+      try {
+        const z = parseAxisZone(n);
+        if (!z) continue;
+        const pts = axisZonePoly(z.center, z.axisBrg, z.lengthNm / 2, z.widthNm / 2);
+        if (pts.length < 3) continue;
+        const id = n.number ? (n.series || '') + n.number + '/' + (n.year || '') : '—';
+        const _zc = z.assumed ? '#6A1B9A' : '#2E7D32';
+        const _zf = z.assumed ? '#9C27B0' : '#4CAF50';
+        const axisPopup = mapPopupHtml(n, icao, z.assumed ? 'Unpublished dimensions<br>' : '');
+        L.polygon(pts, { color: _zc, weight: 2, fillColor: _zf, fillOpacity: .25, interactive: false, pane: 'zonesPane', dashArray: z.assumed ? '6,4' : null }).addTo(obstMap);
+        const axisLL = pts.map(p=>({lat:p[0],lng:p[1]}));
+        registerPolygon(axisLL, axisPopup);
+        registerMarker({ lat: z.center.lat, lng: z.center.lon }, axisPopup);
+        pts.forEach(p => markers.push(L.circleMarker(p)));
+        addZoneLabel(z.center.lat, z.center.lon, zoneAltLabel(n), _zc);
+      } catch(e) {}
+    }
+  }
+
+  // Circle zones (PJE/UAV areas defined by centre PSN + radius, or PJE with default 10NM)
+  for (const [icao, ad] of Object.entries(allApts)) {
+    for (const n of (ad.notams || [])) {
+      const isCirc = isCircleZone(n);
+      const isPje  = !isCirc && isPjeZone(n);
+      if (!isCirc && !isPje) continue;
+      if (isChecklist(n) || shouldHideByRules(n) || shouldHideByAltitude(n)) continue;
+      try {
+        const z = isCirc ? parseCircleZone(n) : parsePjeZone(n);
+        if (!z) continue;
+        const id = n.number ? (n.series || '') + n.number + '/' + (n.year || '') : '—';
+        const radiusLabel = z.radiusM >= 1852 ? (z.radiusM/1852).toFixed(1)+'NM' : z.radiusM.toFixed(0)+'m';
+        const circlePopup = mapPopupHtml(n, icao, 'Circle r=' + radiusLabel + (isPje ? ' (unpublished)' : '') + '<br>');
+        const _zc = isPje ? '#6A1B9A' : '#2E7D32';
+        const _zf = isPje ? '#9C27B0' : '#4CAF50';
+        L.circle([z.centre.lat, z.centre.lon], {
+          radius: z.radiusM,
+          color: _zc, weight: 2,
+          fillColor: _zf, fillOpacity: .18,
+          interactive: false,
+          dashArray: isPje ? '6,4' : null
+        }).addTo(obstMap);
+        L.circleMarker([z.centre.lat, z.centre.lon], {
+          radius: 4, fillColor: _zc, color: '#1B5E20',
+          weight: 2, fillOpacity: .9, interactive: false
+        }).addTo(obstMap);
+        addZoneLabel(z.centre.lat, z.centre.lon, zoneAltLabel(n), _zc);
+        registerMarker({ lat: z.centre.lat, lng: z.centre.lon }, circlePopup);
+        markers.push(L.circleMarker([z.centre.lat, z.centre.lon]));
+      } catch(e) {}
+    }
+  }
+
+  // Arc polygon zones (polygon outline + radius circles at arc centres/endpoints)
+  for (const [icao, ad] of Object.entries(allApts)) {
+    for (const n of (ad.notams || [])) {
+      if (!isArcPolygon(n)) continue;
+      if (isChecklist(n) || shouldHideByRules(n) || shouldHideByAltitude(n)) continue;
+      try {
+        const z = parseArcPolygonPoints(n.iteme || '');
+        if (!z || z.coords.length < 2) continue;
+        // Draw polygon connecting all coords
+        const latlngs = z.coords.map(c => [c.lat, c.lon]);
+        L.polygon(latlngs, {
+          color: '#2E7D32', weight: 2,
+          fillColor: '#4CAF50', fillOpacity: .15,
+          interactive: false
+        }).addTo(obstMap);
+        // Draw radius circle only around identified arc centres
+        if (z.radiusM && z.centreCoords && z.centreCoords.length > 0) {
+          z.centreCoords.forEach(c => {
+            L.circle([c.lat, c.lon], {
+              radius: z.radiusM,
+              color: '#2E7D32', weight: 1.5,
+              fillColor: '#4CAF50', fillOpacity: .08,
+              interactive: false, dashArray: '5,4'
+            }).addTo(obstMap);
+          });
+        } else if (z.radiusM) {
+          // Fallback: no centre identified, draw circle around first coord
+          L.circle([z.coords[0].lat, z.coords[0].lon], {
+            radius: z.radiusM,
+            color: '#2E7D32', weight: 1.5,
+            fillColor: '#4CAF50', fillOpacity: .08,
+            interactive: false, dashArray: '5,4'
+          }).addTo(obstMap);
+        }
+        const [arcLat, arcLon] = polyCentroid(z.coords.map(c => [c.lat, c.lon]));
+        const arcPopup = mapPopupHtml(n, icao);
+        const arcLL = z.coords.map(c => ({lat: c.lat, lng: c.lon}));
+        registerPolygon(arcLL, arcPopup);
+        registerMarker({ lat: arcLat, lng: arcLon }, arcPopup);
+        addZoneLabel(arcLat, arcLon, zoneAltLabel(n), '#2E7D32');
+        markers.push(L.circleMarker([z.coords[0].lat, z.coords[0].lon]));
+      } catch(err) {}
+    }
+  }
+
+  if (markers.length > 0 || Object.keys(coordMap).length > 0) {
+    // Collect chosen airport coordinates (dep, wpts, dest, alts, extras)
+    const routePts = Object.values(coordMap)
+      .filter(c => isFinite(c.lat) && isFinite(c.lon))
+      .map(c => [c.lat, c.lon]);
+
+    // Initial view: fit to chosen airports only, not to all drawn markers.
+    // Distant FIR zones/obstacles would zoom the map out too far otherwise.
+    let viewBounds;
+    if (routePts.length >= 2) {
+      viewBounds = L.featureGroup(routePts.map(p => L.circleMarker(p))).getBounds();
+    } else if (routePts.length === 1) {
+      viewBounds = L.latLng(routePts[0][0], routePts[0][1]).toBounds(120000); // 120km radius
+    } else if (markers.length > 0) {
+      viewBounds = L.featureGroup(markers).getBounds(); // fallback
+    }
+
+    if (viewBounds) {
+      window._lastMapBounds = viewBounds;
+      // Skip fitBounds if the map page requested a specific center/zoom
+      // (e.g. clicking a 📍 map badge for a single NOTAM)
+      if (!window._mapPageRequestedView) {
+        obstMap.fitBounds(viewBounds, { padding: [50, 50], maxZoom: 9, animate: false });
+      }
+    }
+
+    // Store viewport state after fitBounds — multiple retries for reliability
+    function storeMapState() {
+      if (!obstMap) return;
+      window._mapCenter  = obstMap.getCenter();
+      window._mapZoom    = obstMap.getZoom();
+      window._mapScreenW = obstMap.getContainer().offsetWidth;
+      window._mapScreenH = obstMap.getContainer().offsetHeight;
+    }
+    setTimeout(storeMapState, 300);
+    // AUTO-DEBUG: show map coords alert once after map loads (remove after Android diagnosis)
+    if (window._mapDebugShown !== true) {
+      window._mapDebugShown = true;
+      setTimeout(function() {
+      }, 2000);
+    }
+
+    // Update _lastMapBounds whenever user pans or zooms, so the PDF export
+    // always reflects the current view — important on Android where users
+    // zoom in before printing.
+    obstMap.on('moveend zoomend', function() {
+      window._lastMapBounds = obstMap.getBounds();
+    });
+    setTimeout(storeMapState, 800);
+    setTimeout(storeMapState, 2000);
+    obstMap.once('load', function() { setTimeout(storeMapState, 200); });
+
+  } else {
+    obstMap.setView([48, 4], 6);
+  }
+}
+
+// ── GNSS RAIM outage predictions (AUGUR API) ─────────────────────────────────
+// IFR flights only. Fetches outage predictions for all route airports via the
+// local /raim/fetch endpoint (which proxies to AUGUR, caches 30 min).
+// The RAIM card is inserted into #results alongside the AZBA status card.
+
+let _raimData = null;      // last successful result
+let _raimFetching = false; // prevent overlapping fetches
+
+async function loadRaimData(airports, briefStart, briefEnd) {
+  if (_raimFetching) return;
+  _raimFetching = true;
+  _raimData = null;
+  // Show a loading placeholder immediately so the pilot knows it's working
+  insertRaimStatus(null, true);
+  try {
+    const resp = await fetch('/raim/fetch', {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify({
+        airports:    airports,
+        brief_start: briefStart || 0,
+        brief_end:   briefEnd   || 0,
+      }),
+    });
+    const data = await resp.json();
+    _raimData = data;
+    insertRaimStatus(data, false);
+  } catch(e) {
+    console.warn('[raim] fetch failed:', e);
+    insertRaimStatus({ok: false, error: String(e)}, false);
+  } finally {
+    _raimFetching = false;
+  }
+}
+
+function insertRaimStatus(data, loading) {
+  // Remove any previous card
+  document.querySelectorAll('.raim-status-card').forEach(el => el.remove());
+  const resultsEl = document.getElementById('results');
+  if (!resultsEl || !resultsEl.children.length) return;
+
+  const html = raimStatusHtml(data, loading);
+  if (!html) return;
+  // Insert just before the AIS check / AIP supplement card if present,
+  // otherwise append to results — same logic as AZBA status card.
+  const ref = document.getElementById('ais-check-lcard')
+            || document.getElementById('aip-sup-lcard');
+  if (ref) ref.insertAdjacentHTML('beforebegin', html);
+  else resultsEl.insertAdjacentHTML('beforeend', html);
+}
+
+function raimStatusHtml(data, loading) {
+  if (loading) {
+    return '<div class="lcard raim-status-card" style="-webkit-column-span:all;column-span:all;'
+      + 'break-before:avoid;font-size:11px;color:#555;background:#F5F5F5;'
+      + 'border-left:3px solid #9E9E9E;padding:6px 10px;border-radius:6px">'
+      + '⏳ Checking GNSS RAIM availability…'
+      + '</div>';
+  }
+
+  if (!data || !data.ok) {
+    // Not configured or fetch error — show only if we have something useful to say
+    if (data && data.error && data.error.includes('not configured')) {
+      return ''; // silently omit — user didn't set up AUGUR, no need to alarm them
+    }
+    const errMsg = (data && data.error) ? data.error : 'Unknown error';
+    return '<div class="lcard raim-status-card" style="-webkit-column-span:all;column-span:all;'
+      + 'break-before:avoid;font-size:11px;color:#555;background:#F5F5F5;'
+      + 'border-left:3px solid #9E9E9E;padding:6px 10px;border-radius:6px">'
+      + '⚠️ GNSS RAIM data unavailable — check manually via '
+      + '<a href="https://augur.eurocontrol.int/tool/" target="_blank" '
+      + 'style="color:#1565C0;text-decoration:underline">AUGUR</a>.'
+      + '<div style="font-size:10px;color:#888;margin-top:2px">' + escH(errMsg) + '</div>'
+      + '</div>';
+  }
+
+  // Find airports with outages intersecting the flight window
+  const airports = data.airports || {};
+  const withOutages = Object.entries(airports)
+    .filter(([, v]) => v.outages_in_window && v.outages_in_window.length > 0)
+    .sort(([a], [b]) => a < b ? -1 : 1);
+
+  // Show the date the predictions were computed for (start_date sent to AUGUR)
+  const startDate = data.start_date;  // YYYY-MM-DD
+  const scenarioEnd = data.scenario_end;
+  let staleCaveat = '';
+  if (startDate) {
+    // Format YYYY-MM-DD as DD/MM/YYYY
+    const parts = startDate.split('-');
+    const fmtDate = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : startDate;
+    staleCaveat = '<div style="margin-top:4px;font-size:10px;color:#888">'
+      + 'AUGUR predictions for ' + escH(fmtDate)
+      + ' — always verify at <a href="https://augur.eurocontrol.int/tool/" target="_blank" '
+      + 'style="color:#1565C0;text-decoration:underline">augur.eurocontrol.int</a>.'
+      + '</div>';
+  } else if (data.scenario_stale) {
+    staleCaveat = '<div style="margin-top:4px;font-size:10px;color:#E65100">'
+      + '⚠ AUGUR scenario window (' + escH(_raimFmtDate(scenarioEnd))
+      + ') does not cover the planned flight — predictions may be unreliable.'
+      + '</div>';
+  } else if (scenarioEnd && _briefEnd) {
+    const scenEnd = new Date(scenarioEnd).getTime() / 1000;
+    if (scenEnd < _briefEnd) {
+      staleCaveat = '<div style="margin-top:4px;font-size:10px;color:#E65100">'
+        + '⚠ AUGUR prediction horizon: ' + escH(_raimFmtDate(scenarioEnd))
+        + ' — flight extends beyond this window.'
+        + '</div>';
+    }
+  }
+
+  const officialLink = '';
+
+  if (withOutages.length === 0) {
+    // No outages — green card
+    return '<div class="lcard raim-status-card" style="-webkit-column-span:all;column-span:all;'
+      + 'break-before:avoid;font-size:11px;color:#2E7D32;background:#E8F5E9;'
+      + 'border-left:3px solid #2E7D32;padding:6px 10px;border-radius:6px">'
+      + '✓ No GNSS RAIM outages predicted during planned flight'
+      + ' (LNAV/VNAV · mask 12.5° · baro ON — ' + Object.keys(airports).join(', ') + ')'
+      + staleCaveat
+      + officialLink
+      + '</div>';
+  }
+
+  // Outages found — orange/red card
+  let rows = '';
+  for (const [code, v] of withOutages) {
+    for (const o of v.outages_in_window) {
+      const start = new Date(o.start);
+      const end   = new Date(o.end);
+      const dur   = Math.round((end - start) / 60000);
+      const fmt   = t => t.toUTCString().slice(17, 22) + 'z';
+      rows += '<div><strong>' + escH(code) + '</strong>: '
+        + escH(fmt(start)) + ' – ' + escH(fmt(end))
+        + ' <span style="color:#888;font-size:10px">(' + dur + ' min)</span></div>';
+    }
+  }
+
+  return '<div class="lcard raim-status-card" style="-webkit-column-span:all;column-span:all;'
+    + 'break-before:avoid;font-size:11px;color:#BF360C;background:#FBE9E7;'
+    + 'border-left:3px solid #BF360C;padding:6px 10px;border-radius:6px">'
+    + '<div style="font-weight:600;margin-bottom:2px">⚠️ GNSS RAIM outage(s) predicted during planned flight:</div>'
+    + rows
+    + staleCaveat
+    + officialLink
+    + '</div>';
+}
+
+function _raimFmtDate(iso) {
+  if (!iso) return '?';
+  try {
+    const d = new Date(iso);
+    const dd = String(d.getUTCDate()).padStart(2,'0');
+    const mm = String(d.getUTCMonth()+1).padStart(2,'0');
+    const yy = d.getUTCFullYear();
+    const hh = String(d.getUTCHours()).padStart(2,'0');
+    const mn = String(d.getUTCMinutes()).padStart(2,'0');
+    return `${dd}/${mm}/${yy} ${hh}:${mn}z`;
+  } catch(e) { return iso; }
+}
+
+// ── Main render ────────────────────────────────────────────────────────────
+function renderAll(routeApts, nearbyApts, allApts, nearbyIcaos, routeSeq, roles, firs, exs, extraFirs, radiusNm, coordMap, legPairs, fetchedAt, briefStart, briefEnd, summaryOrder) {
+  _neverHit = new Map(); // reset for this render
+  _briefStart = briefStart || 0;
+  _briefEnd   = briefEnd   || 0;
+  const glossary = buildGlossary(allApts);
+  const { glossKeys, byKey, seenBy } = glossary;
+  const thresh = parseInt(document.getElementById('obst-thresh').value) || 200;
+  const countVis = apts => Object.values(apts).reduce((s, ad) => s + (ad.notams || []).filter(n => !isChecklist(n) && !shouldHideByRules(n) && !shouldHideByAltitude(n) && !shouldHideObst(n) && !shouldHideEquipment(n)).length, 0);
+  const allDebug = [];
+
+  window._lastApts = allApts; // for console debugging
+  window._nearbyIcaos = nearbyIcaos;
+  // ── AIP SUP detection — only from visible NOTAMs, deduped by ref ────────
+  const thresh0 = parseInt(document.getElementById('obst-thresh').value) || 200;
+  const aipSupMap = {}; // ref -> { locations: Set, notamIds: Set, text }
+  for (const [icao, ad] of Object.entries(allApts)) {
+    for (const n of (ad.notams || [])) {
+      // Skip hidden NOTAMs
+      if (isChecklist(n)) continue;
+      if (shouldHideByRules(n)) continue;
+      if (shouldHideByAltitude(n)) continue;
+      if (shouldHideObst(n)) continue;
+      if (shouldHideEquipment(n)) continue;
+      const e = n.iteme || '';
+      if (/TRIGGER NOTAM/i.test(e) && /AIP\s*SUP/i.test(e)) {
+        const supRe = /(?:AIRAC\s+AIP\s+SUP|AIP\s+SUP)\s+(?:AIP\s+)?(\d{3}\s*\/\s*\d{2,4})/gi;
+        let m;
+        while ((m = supRe.exec(e)) !== null) {
+          const ref = m[1].replace(/\s/g,'');
+          if (!aipSupMap[ref]) aipSupMap[ref] = { locations: new Set(), notamIds: new Set(), text: '' };
+          aipSupMap[ref].locations.add(icao);
+          const nid = n.number ? (n.series||'')+n.number+'/'+(n.year||'') : '—';
+          aipSupMap[ref].notamIds.add(nid);
+          if (!aipSupMap[ref].text) {
+            // Extract subject: line after TRIGGER NOTAM - AIP SUP NNN/YY :
+            const subj = e.replace(/TRIGGER NOTAM[^:.]*[:.]/i,'').replace(/THIS AIP SUP.*/is,'').trim().slice(0,150);
+            aipSupMap[ref].text = subj;
+          }
+        }
+      }
+    }
+  }
+  const aipSups = Object.entries(aipSupMap).sort((a,b) => a[0].localeCompare(b[0]));
+
+  let h = '<div class="divider"></div>'
+    + '<div class="legend-bar">'
+    + '<span><span class="lbox" style="background:#FFCDD2"></span>Closure/U/S</span>'
+        + '<span><span class="lbox" style="background:#fff;border:1px solid #555"></span>Obst LGT U/S</span>'
+    + '<span><span class="lbox" style="background:#BBDEFB"></span>Procedure/Minima</span>'
+    + '<span><span class="lbox" style="background:#F1FFF4;border:.5px solid #A5D6A7"></span>On map</span>'
+    + '<span style="color:#C62828;font-weight:600"><span class="lbox" style="background:#FFCDD2;border:.5px solid #EF9A9A"></span>RWY/AD closed</span>'
+    + '</div>'
+    + '<div class="sbar">'
+    + '<div class="sc"><div class="sn">' + countVis(routeApts) + '</div><div class="sl2">Route</div></div>'
+    + '<div class="sc"><div class="sn">' + countVis(nearbyApts) + '</div><div class="sl2">Nearby</div></div>'
+    + '<div class="sc"><div class="sn">' + glossKeys.size + '</div><div class="sl2">Glossary</div></div>'
+    + '<div class="sc"><div class="sn">' + firs.length + '</div><div class="sl2">FIRs</div></div>'
+    + '<div class="sc"><div class="sn">' + nearbyIcaos.length + '</div><div class="sl2">Nearby apts</div></div>'
+    + '</div>';
+
+  // ── 0. AIP SUP summary ────────────────────────────────────────────────
+  if (aipSups.length > 0) { // aipSups is array of [ref, info]
+    // Collect country prefixes from all route+nearby ICAOs
+    const routePrefixes = new Set(
+      Object.keys(allApts).map(ic => ic.slice(0, 2).toUpperCase()).filter(p => AIS_WEBSITES[p])
+    );
+    if (routePrefixes.size > 0) {
+      const links = [...routePrefixes].sort().map(p => {
+        const { name, url } = AIS_WEBSITES[p];
+        return '<span style="margin-right:12px">' + name + ': <a href="' + escH(url) + '" target="_blank" '
+          + 'style="color:#1565C0;word-break:keep-all">' + escH(url) + '</a></span>';
+      }).join('<br>');
+      // Build summary order: tkof, dep, wpts, dest, alt1, alt2, extras
+
+      h += '<div class="lcard" id="ais-check-lcard" style="column-span:all;margin-bottom:.4rem;font-size:11px;color:#555">'
+        + '<strong>Check national AIS websites for AIP SUP and aeronautical information:</strong><br>'
+        + '<div style="margin-top:5px;line-height:2">' + links + '</div></div>';
+    }
+    h += '<div class="sec-head" style="column-span:all;break-after:avoid"><span class="sec-badge" style="background:#FFF3E0;color:#E65100">AIP SUP references</span>'
+      + ' <span style="font-size:11px;color:#888">' + aipSups.length + ' AIP supplement(s) referenced</span></div>';
+    h += '<div class="sec-sentinel"></div>';
+    h += '<div class="lcard" id="aip-sup-lcard" style="margin-bottom:.6rem;column-span:all;break-before:avoid"><table style="width:100%;border-collapse:collapse;font-size:11px">'
+      + '<thead><tr style="background:#f7f7f7;font-weight:600">'
+      + '<td style="padding:4px 8px;border-bottom:.5px solid #ddd">SUP reference</td>'
+      + '<td style="padding:4px 8px;border-bottom:.5px solid #ddd">Locations</td>'
+      + '<td style="padding:4px 8px;border-bottom:.5px solid #ddd">Subject</td>'
+      + '</tr></thead><tbody>';
+    aipSups.forEach(([ref, info]) => {
+      const locs = [...info.locations].sort().join(', ');
+      // Derive country prefix from the first location ICAO
+      const supPrefix = ([...info.locations][0] || '').slice(0, 2);
+      h += '<tr style="border-bottom:.5px solid #f0f0f0">'
+        + '<td style="padding:4px 8px">' + supAipBadge(ref, supPrefix) + '</td>'
+        + '<td style="padding:4px 8px;font-family:monospace;font-size:10px">' + escH(locs) + '</td>'
+        + '<td style="padding:4px 8px;color:#666;font-size:10px">' + escH(info.text.slice(0,150)) + '</td>'
+        + '</tr>';
+    });
+    h += '</tbody></table></div>';
+  }
+
+  // ── 1. Route airports (NO FIRs here) ──────────────────────────────────
+  h += '<div id="route-page-break"></div>';
+  h += '<div class="sec-head"><span class="sec-badge route">Route airports</span></div>';
+  h += '<div class="sec-sentinel"></div>';
+  h += '<div class="lcard">';
+  const mainSeq = routeSeq.filter(x => !exs.includes(x));
+  for (const icao of mainSeq) {
+    const { html, debugItems } = renderAptBlock(icao, routeApts[icao], glossary, roles[icao] || []);
+    h += html; debugItems.forEach(d => allDebug.push({ icao, ...d }));
+  }
+  if (exs.length) {
+    h += '<div style="margin-top:8px;padding-top:8px;border-top:.5px dashed #ccc"><div class="sl" style="margin-bottom:4px">Additional airfields</div>';
+    for (const icao of exs) {
+      const { html, debugItems } = renderAptBlock(icao, routeApts[icao], glossary, ['extra']);
+      h += html; debugItems.forEach(d => allDebug.push({ icao, ...d }));
+    }
+    h += '</div>';
+  }
+  h += '</div>';
+
+  // ── 2. Nearby airports ────────────────────────────────────────────────
+  h += '<div id="nearby-page-break"></div>';
+  h += '<div class="sec-head"><span class="sec-badge nearby">Nearby airports</span> <span style="font-size:11px;color:#888">along full route corridor — ' + radiusNm + ' NM</span></div>';
+  h += '<div class="sec-sentinel"></div>';
+  // sec-sentinel binds nearby header to what follows it
+  if (!nearbyIcaos.length) {
+    h += '<div class="lcard"><div class="none">No nearby airports within the corridor.</div></div>';
+  } else {
+    h += '<div class="lcard" style="margin-bottom:.5rem"><div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="font-size:10px;color:#888">' + nearbyIcaos.length + ' airports — purple = has NOTAMs</span>'
+      + '</div>'
+      + '<div class="nearby-icao-list">' + nearbyIcaos.map(i => {
+        const hasN = (nearbyApts[i]?.notams || []).filter(n => !isChecklist(n) && !shouldHideByRules(n) && !shouldHideByAltitude(n) && !shouldHideObst(n) && !shouldHideEquipment(n)).length > 0;
+        return '<span class="nearby-icao' + (hasN ? ' has-notams' : '') + '"><a href="#apt_' + i + '" onclick="scrollTo2(\'apt_' + i + '\')">' + i + '</a></span>';
+      }).join('') + '</div></div>';
+    const ncards = [];
+    for (const icao of nearbyIcaos) {
+      const { html, debugItems, hasContent } = renderAptBlock(icao, nearbyApts[icao], glossary, [], true);
+      if (hasContent) ncards.push(html);
+      debugItems.forEach(d => allDebug.push({ icao, ...d }));
+    }
+    if (ncards.length) h += '<div class="lcard">' + ncards.join('') + '</div>';
+    else h += '<div class="lcard"><div class="none">All nearby airports filtered.</div></div>';
+  }
+
+  // ── 3. Glossary ────────────────────────────────────────────────────────
+  // FIX: heading is now INSIDE the lcard so it can never be orphaned from its content.
+  // The outer .sec-head with column-span:all was the source of the blank-page bug.
+  if (!glossKeys.size) {
+    h += '<div id="glossary-page-break"></div>';
+    h += '<div class="sec-head" style="margin-bottom:8px"><span class="sec-badge gloss">Glossary</span> <span style="font-size:11px;color:#888">No shared NOTAMs.</span></div>';
+    h += '<div class="sec-sentinel"></div>';
+    h += '<div class="lcard"><span style="color:#888;font-size:11px">No shared NOTAMs.</span></div>';
+  } else {
+    const byLoc = {};
+    for (const k of glossKeys) {
+      const n = byKey[k], loc = ((n.itema && n.itema[0]) || n.series || '?').toUpperCase();
+      if (!byLoc[loc]) byLoc[loc] = []; byLoc[loc].push({ k, n });
+    }
+    h += '<div class="lcard">';
+    h += '<div id="glossary-page-break"></div>';
+    h += '<div class="sec-head" style="margin-bottom:8px"><span class="sec-badge gloss">Glossary</span> <span style="font-size:11px;color:#888">' + glossKeys.size + ' shared NOTAMs — A→Z by location indicator</span></div>';
+    h += '<div class="sec-sentinel"></div>';
+    Object.keys(byLoc).sort().forEach(loc => {
+      const items = byLoc[loc]; items.sort((a, b) => notamSortKey(a.n) - notamSortKey(b.n) || notamKey(a.n).localeCompare(notamKey(b.n)));
+      const refs = [...new Set(items.flatMap(({ k }) => seenBy[k]))].sort();
+      h += '<div class="gloss-group"><div class="gloss-icao-head"><span class="gloss-loc">' + escH(loc) + '</span><span class="gloss-refs">Referenced by: ' + refs.map(r => '<strong>' + r + '</strong>').join(', ') + '</span></div>';
+      items.forEach(({ k, n }) => { h += fullCard(n, notamAnchor(k), loc); });
+      h += '</div>';
+    });
+    h += '</div>'; // close glossary lcard
+  }
+
+  // ── 4. FIR NOTAMs (after glossary) ───────────────────────────────────
+  h += '<div class="divider"></div>';
+  const allFirsToShow = [...new Set([...firs, ...extraFirs])];
+  const firLabel = allFirsToShow.length ? allFirsToShow.join(', ') + ' — crossed FIRs' : 'No FIRs identified';
+  h += '<div class="sec-head"><span class="sec-badge firs">FIR NOTAMs</span> <span style="font-size:11px;color:#888">' + firLabel + '</span></div>';
+  if (!allFirsToShow.length) {
+    h += '<div class="lcard"><div class="none">No FIRs identified for this route.</div></div>';
+  } else {
+    h += '<div class="lcard">';
+    for (const fir of allFirsToShow) {
+      const useDedup = document.getElementById('filt-dedup').checked;
+      const ad = routeApts[fir], notams = (ad?.notams || []);
+      const visible = [], firStubs = [];
+      for (const n of notams) {
+        if (isChecklist(n))          { allDebug.push({ icao: fir, n, reason: 'checklist' }); continue; }
+        if (shouldHideByRules(n))    { allDebug.push({ icao: fir, n, reason: 'rules/traffic' }); continue; }
+        if (shouldHideByAltitude(n)) { allDebug.push({ icao: fir, n, reason: 'altitude' }); continue; }
+        if (shouldHideObst(n))       { allDebug.push({ icao: fir, n, reason: 'obstacle <' + (parseInt(document.getElementById('obst-thresh').value)||200) + 'ft' }); continue; }
+        if (shouldHideEquipment(n))  { allDebug.push({ icao: fir, n, reason: 'equipment' }); continue; }
+        if (_neverLoaded && _never[_notamId(n)]) { _neverHit.set(_notamId(n), { n, icao: fir }); continue; } // never-show list
+        if (useDedup && glossKeys.has(notamKey(n))) {
+          firStubs.push({ id: n.number ? (n.series||'')+n.number+'/'+(n.year||'') : '—', anchor: notamAnchor(notamKey(n)) });
+          continue;
+        }
+        visible.push(n);
+      }
+      h += '<div class="ablock" id="fir_' + fir + '">'
+        + '<div class="apt-head">' + escH(fir) + ' <span class="role-tag fir">FIR</span>'
+        + ' <span style="font-weight:400;font-size:10px;color:#888">' + (visible.length + firStubs.length) + ' NOTAM' + ((visible.length + firStubs.length) !== 1 ? 's' : '') + '</span></div>';
+      visible.sort((a, b) => notamSortKey(a) - notamSortKey(b));
+      if (!visible.length && !firStubs.length) h += '<div class="none">No FIR NOTAMs in this validity window.</div>';
+      else visible.forEach(n => {
+        _notamLookup[_notamId(n)] = n; // for map badge click
+        const uid2 = cardUid(fir, n);
+        const cbId2 = 'cb_' + uid2.replace(/[^a-z0-9]/gi,'_');
+        const id2 = n.number ? (n.series||'')+n.number+'/'+(n.year||'') : '—';
+        const cc2 = notamCC(n), mapped2 = isMappable(n), dt2 = (n.itemd||'').trim();
+        const firAnchor = notamAnchor(notamKey(n));
+        const firLong = (n.iteme || '').length > 400 ? ' ni-long' : '';
+        h += '<div class="ni' + (mapped2?' mapped':'') + firLong + '" id="' + firAnchor + '" data-uid="' + escH(uid2) + '">'
+          + '<input type="checkbox" class="print-cb" id="' + cbId2 + '" title="Include in print">'
+          + notamActions(n, fir)
+          + '<span class="ni-icao" onclick="event.stopPropagation();scrollToFlightParams()" title="Go to Aircraft & flight parameters">' + escH(fir) + '</span>'
+          + '<div class="nhdr"><span class="nid ' + cc2 + '">' + escH(id2) + '</span>'
+          + ((n.scope||'').trim() ? '<span class="nbadge">'+escH((n.scope||'').trim())+'</span>' : '')
+          + (mapped2 ? '<span class="nbadge mapped-badge" style="cursor:pointer" onclick="event.stopPropagation();openMapFullscreen(_notamLookup[' + JSON.stringify(_notamId(n)).replace(/"/g, '&quot;') + '])" title="Open map centred on this NOTAM">📍 map</span>' : '')
+          + '</div>'
+          + (dt2?'<div class="nfield"><span class="nfield-label">D)</span><span class="ne" style="color:#888">'+escH(dt2)+'</span></div>':'')
+          + '<div class="nfield"><span class="nfield-label">E)</span><span class="ne">'+linkifySupRefs(escH((n.iteme||'').replace(/\s*\(https?:\/\/[^)\s]+\)/g,'').replace(/\s*\([ab]\)/g,'')), fir.slice(0,2))+'</span></div>'
+          + '<div class="nv">From '+fmtTs(n.startvalidity)+' → Until '+fmtTs(n.endvalidity)
+          + (n.lower != null ? ' | ' + fmtAltRaw(n.itemf, n.lower) + '–' + fmtAltRaw(n.itemg, n.upper) : '')
+          + '</div></div>';
+      });
+      if (firStubs.length) h += '<div class="gloss-footer">📋 See glossary: ' + firStubs.map(({ id, anchor }) => '<a onclick="scrollTo2(\'' + anchor + '\')">' + escH(id) + '</a>').join(' · ') + '</div>';
+      h += '</div>';
+    }
+    h += '</div>';
+  }
+
+  // ── 5b. Map (inside #results, before debug) ──────────────────────────────
+  const _mapDisc = window._disclosureText ? ' <span class="map-disclosure">' + window._disclosureText + '</span>' : '';
+  h += '<div id="map-lcard"><div class="map-sec-head">'
+    + '<span class="sec-badge obst">Map — obstacles &amp; restricted zones</span>'
+    + _mapDisc
+    + '<label class="airport-layer-toggle" style="margin-left:auto;display:flex;align-items:center;gap:4px;font-size:10px;color:#666;cursor:pointer;flex-shrink:0" title="Show all airports in the database as dots (grey = not in corridor, green = in corridor)">'
+    + '<input type="checkbox" id="airport-layer-cb" onchange="setAirportLayerOn(this.checked)"' + (getAirportLayerOn() ? ' checked' : '') + ' style="margin:0">All airports'
+    + '</label>'
+    + '<div class="map-style-switch" style="display:flex;gap:3px;flex-shrink:0">'
+    + Object.entries(MAP_STYLES).map(([key, s]) =>
+        '<button class="map-style-btn' + (key === getMapStyle() ? ' active' : '') + '" data-style="' + key + '" '
+        + 'onclick="setMapStyle(\'' + key + '\')" title="' + escH(s.label) + ' background">' + escH(s.label) + '</button>'
+      ).join('')
+    + '</div>'
+    + '<button onclick="openMapFullscreen()" title="Open map full screen in new tab" '
+    + 'style="font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid #ccc;background:#fff;cursor:pointer;flex-shrink:0">⛶ Full screen</button>'
+    + '</div><div id="obstmap"></div>'
+    + '<div class="map-legend" id="map-legend">'
+    + '<span><i class="dot red"></i> Obstacle ≥' + thresh + 'ft AGL</span>'
+    + '<span><i class="dot orange"></i> Obstacle &lt;' + thresh + 'ft AGL</span>'
+    + '<span><i class="dot-sq"></i> Zone (TSA/TRA/Prohibited)</span>'
+    + '<span><i class="dot-sq-assumed"></i> Zone — unpublished dimensions</span>'
+    + '<span style="display:flex;align-items:center;gap:3px"><svg width="22" height="10"><line x1="0" y1="5" x2="22" y2="5" stroke="#333" stroke-width="1.5" stroke-dasharray="4,4"/></svg>Corridor</span>'
+    + '</div>'; // close map-legend
+
+  // ── 6. Debug ───────────────────────────────────────────────────────────
+  h += '<div class="divider"></div>';
+  h += '<details id="debug-details">';
+  h += '<summary style="display:flex;align-items:center;gap:6px">';
+
+  h += '<span>🔍 Debug — ' + allDebug.length + ' hidden NOTAM' + (allDebug.length !== 1 ? 's' : '') + '</span>';
+  h += '</summary>';
+  if (!allDebug.length) {
+    h += '<div class="lcard" style="margin-top:.5rem"><div class="none">No NOTAMs hidden.</div></div>';
+  } else {
+    const byIcao = {}; allDebug.forEach(({ icao, n, reason }) => { if (!byIcao[icao]) byIcao[icao] = []; byIcao[icao].push({ n, reason }); });
+    h += '<div class="lcard" style="margin-top:.5rem">';
+    Object.keys(byIcao).sort().forEach(icao => {
+      h += '<div class="ablock"><div class="apt-head">' + escH(icao) + ' <span class="sec-badge debug">hidden</span></div>';
+      byIcao[icao].forEach(({ n, reason }) => { h += debugCard(n, reason, icao); }); h += '</div>';
+    });
+    h += '</div>';
+  }
+  h += '</details>';
+
+  // ── Never-shown NOTAMs management section ────────────────────────────────
+  // Only show NOTAMs actually encountered and suppressed during this render
+  const neverEntries = [..._neverHit.entries()].map(([nid, { n, icao }]) => [nid, { ...(_never[nid] || {}), _n: n, icao }]);
+  // Now both allDebug and neverEntries are ready — compute disclosure and update map title
+  window._disclosureText = allDebug.length + ' NOTAM' + (allDebug.length !== 1 ? 's' : '') + ' hidden based on FLIGHT PARAMETERS — '
+    + neverEntries.length + ' NOTAM' + (neverEntries.length !== 1 ? 's' : '') + ' never shown by manual exclusion.';
+  const mapSecHead = document.querySelector('#map-lcard .map-sec-head');
+  if (mapSecHead) {
+    const badge = mapSecHead.querySelector('.sec-badge');
+    mapSecHead.innerHTML = (badge ? badge.outerHTML : '') + (window._disclosureText ? ' <span class="map-disclosure">' + window._disclosureText + '</span>' : '');
+  }
+  h += '<details id="never-details">';
+  h += '<summary style="display:flex;align-items:center;gap:6px">';
+  h += '<span>🚫 Never shown — ' + neverEntries.length + ' NOTAM' + (neverEntries.length !== 1 ? 's' : '') + '</span>';
+  h += '</summary>';
+  if (!neverEntries.length) {
+    h += '<div class="lcard" style="margin-top:.5rem"><div class="none">No NOTAMs suppressed.</div></div>';
+  } else {
+    h += '<div class="lcard" style="margin-top:.5rem">';
+    h += '<div class="none" style="color:#e65100;margin-bottom:8px">⚠ Restoring a NOTAM requires a new fetch to show it again.</div>';
+    neverEntries.forEach(([nid, data]) => {
+      const safeId = nid.replace(/[^a-z0-9]/gi, '_');
+      const mappedNv = data._n ? isMappable(data._n) : false;
+      if (mappedNv) _notamLookup[nid] = data._n; // for map badge click
+      h += '<div class="ni debug-hidden" id="nv-' + safeId + '" style="display:flex;align-items:flex-start;gap:8px">'
+        + '<div style="flex:1">'
+        + '<div class="nhdr"><span class="nid">' + escH(nid) + '</span>'
+        + ((data.scope||'') ? '<span class="nbadge">' + escH(data.scope) + '</span>' : '')
+        + ((data.traffic||'') ? '<span class="nbadge">' + escH(data.traffic) + '</span>' : '')
+        + (mappedNv ? '<span class="nbadge mapped-badge" style="cursor:pointer" onclick="event.stopPropagation();openMapFullscreen(_notamLookup[' + JSON.stringify(nid).replace(/"/g, '&quot;') + '])" title="Open map centred on this NOTAM">📍 map</span>' : '')
+        + '</div>'
+        + '<div class="nfield"><span class="nfield-label">E)</span><span class="ne">'
+        + escH((data.iteme || '').slice(0, 300)) + '</span></div>'
+        + '</div>'
+        + '<button class="ack-btn" style="flex-shrink:0;margin-top:2px"'
+        + ' data-nid="' + escH(nid) + '" data-safe-id="' + safeId + '"'
+        + ' onclick="restoreNever(this)">\u21a9 Restore</button>'
+        + '</div>';
+    });
+    h += '</div>';
+  }
+  h += '</details>';
+
+  h += '<div class="notebox">Source: autorouter.aero (Eurocontrol EAD) via local proxy. Always cross-check with official pre-flight briefing. Fetched: ' + escH(fetchedAt) + ' · v1 (standalone — no proxy needed)</div>';
+
+  // Remove any previously externalized #map-lcard before re-rendering
+  var _oldMap = document.getElementById('map-lcard');
+  if (_oldMap && _oldMap.parentNode !== document.getElementById('results')) {
+    _oldMap.parentNode.removeChild(_oldMap);
+  }
+  // Remove any previously moved elements before replacing results
+  ['map-lcard', 'map-static-print', 'map-page-break-sentinel'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.parentNode.removeChild(el);
+  });
+  if (window._printStaticImg) { window._printStaticImg.remove(); window._printStaticImg = null; }
+  document.body.classList.remove('has-static-map');
+  document.getElementById('results').innerHTML = h;
+  // Generate AI summaries now that results are rendered
+  if (summaryOrder && summaryOrder.length) {
+    const aiLines0 = parseInt(document.getElementById('ai-lines')?.value || '2', 10);
+    const aiChars0 = parseInt(document.getElementById('ai-chars')?.value || '80', 10);
+    if (_aiEnabled && aiLines0 > 0 && aiChars0 > 0) {
+      // Show a pending placeholder immediately while AI processes
+      const pendingHtml = '<div class="lcard ai-summary-card ai-summary-pending" style="-webkit-column-span:all;column-span:all;break-before:avoid">'
+        + '<div style="font-size:10px;font-weight:600;color:#1565C0;margin-bottom:4px">✨ AI NOTAM Summary</div>'
+        + '<div style="font-size:11px;color:#888">⏳ Generating summaries\u2026</div></div>';
+      const old0 = document.querySelector('.ai-summary-card');
+      if (old0) old0.remove();
+      const aisRef0 = document.getElementById('ais-check-lcard')
+                  || document.getElementById('aip-sup-lcard');
+      if (aisRef0) aisRef0.insertAdjacentHTML('beforebegin', pendingHtml);
+      else document.getElementById('results').insertAdjacentHTML('beforeend', pendingHtml);
+    }
+    generateSummaries(summaryOrder, allApts, roles).then(function(summaries) {
+      const summaryHtml = buildSummaryHtml(summaryOrder, summaries, roles);
+      const old = document.querySelector('.ai-summary-card');
+      if (old) old.remove();
+      if (summaryHtml) {
+        // Insert before "Check national AIS websites" section
+        const aisRef = document.getElementById('ais-check-lcard')
+                    || document.getElementById('aip-sup-lcard');
+        if (aisRef) aisRef.insertAdjacentHTML('beforebegin', summaryHtml);
+        else document.getElementById('results').insertAdjacentHTML('beforeend', summaryHtml);
+      }
+    });
+  }
+  // RTBA CSV-vs-cache discrepancy: only ever CHECKED once, at page load
+  // (see startup block) -- here we just re-render the in-results warning
+  // from that stored result, since #results just got fully replaced above.
+  insertAzbaResultsWarning();
+  // AZBA active-zone status (intersecting RTBA, or "no active RTBA", or
+  // "data unavailable") -- (re)loads zone/schedule data if needed, then
+  // inserts the status card now that #results has fresh content.
+  loadAzbaData().then(function() { insertAzbaStatus(); });
+  // GNSS RAIM outage predictions — IFR only, background fetch via AUGUR API.
+  // routeSeq and _briefStart/_briefEnd are available here from renderAll's args.
+  if ((document.getElementById('rules').value || '').toUpperCase() === 'IFR') {
+    loadRaimData(routeSeq, _briefStart, _briefEnd);
+  }
+  // Move new #map-lcard outside #results — float layout causes blank page otherwise
+  var _mapLcard = document.getElementById('map-lcard');
+  if (_mapLcard) {
+    var _res = document.getElementById('results');
+    _res.parentNode.insertBefore(_mapLcard, _res.nextSibling);
+  }
+
+  // ── MAP ──────────────────────────────────────────────────────────────────
+  showSelbar();
+
+  setTimeout(function() {
+    renderObstMap(allApts, thresh, coordMap, radiusNm, legPairs);
+    // After Leaflet init, force size recalculation in case container was just injected
+    setTimeout(function() { if (window.obstMap) obstMap.invalidateSize(); }, 200);
+  }, 500);
+}
+
+
+
+
+async function restoreNever(btn) {
+  const nid = btn.dataset.nid;
+  const safeId = btn.dataset.safeId;
+  const email = getArEmail();
+  try {
+    await fetch('/never/remove', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ email, notam_id: nid })
+    });
+    delete _never[nid];
+    // Remove card from list
+    const card = document.getElementById('nv-' + safeId);
+    if (card) card.remove();
+    // Update count in summary
+    // Update both inline (in results) and standalone sections
+    const n = Object.keys(_never).length;
+    document.querySelectorAll('#never-details summary span, #never-details-standalone summary span').forEach(s => {
+      s.textContent = '🚫 Never shown — ' + n + ' NOTAM' + (n !== 1 ? 's' : '');
+    });
+
+  } catch(e) { alert('Restore failed: ' + e.message); }
+}
+
+// Safari-compatible print visibility — :has() not supported on Safari <15.4
+window.addEventListener('beforeprint', function() {
+  // Hide unchecked cards
+  document.querySelectorAll('.ni').forEach(function(ni) {
+    var cb = ni.querySelector('.print-cb');
+    if (cb && !cb.checked) ni.classList.add('print-hidden');
+  });
+  // Wrap pairs of visible .ni cards in .print-col-wrap flex rows
+  // Skip cards inside .apt-anchor (heading+first card pair — must stay together for orphan control)
+  document.querySelectorAll('#results .ablock, #results .lcard').forEach(function(block) {
+    var cards = Array.from(block.querySelectorAll('.ni:not(.print-hidden):not(.snap-gone)'));
+    // Separate anchored first card from the rest
+    var anchored = cards.filter(function(c) { return c.closest('.apt-anchor'); });
+    var free = cards.filter(function(c) { return !c.closest('.apt-anchor'); });
+    // Pair up free cards
+    for (var i = 0; i < free.length; i += 2) {
+      var wrap = document.createElement('div');
+      wrap.className = 'print-col-wrap';
+      free[i].parentNode.insertBefore(wrap, free[i]);
+      wrap.appendChild(free[i]);
+      if (free[i + 1]) wrap.appendChild(free[i + 1]);
+    }
+    // Anchored card: pair with first free wrap if exists and apt-anchor has room
+    // (leave it alone — apt-anchor break-inside:avoid handles it)
+  });
+});
+window.addEventListener('afterprint', function() {
+  // Unwrap .print-col-wrap divs
+  document.querySelectorAll('.print-col-wrap').forEach(function(wrap) {
+    var parent = wrap.parentNode;
+    while (wrap.firstChild) parent.insertBefore(wrap.firstChild, wrap);
+    parent.removeChild(wrap);
+  });
+  document.querySelectorAll('.ni.print-hidden').forEach(function(ni) {
+    ni.classList.remove('print-hidden');
+  });
+});
+
+function selectAll() {
+  document.querySelectorAll('.print-cb').forEach(cb => {
+    const ni = cb.closest('.ni');
+    if (!ni) return;
+    cb.checked = true;
+  });
+}
+function deselectAll() {
+  document.querySelectorAll('.print-cb').forEach(cb => { cb.checked = false; });
+}
+function defaultSelection() {
+  // ON: route/nearby airport notams. OFF: hidden notams (debug-hidden), FIR notams
+  // (opt-in only — matches the unchecked state they render with initially).
+  document.querySelectorAll('.print-cb').forEach(cb => {
+    const ni = cb.closest('.ni');
+    if (!ni) return;
+    // debug-hidden = was filtered out by flight parameters
+    if (ni.classList.contains('debug-hidden')) { cb.checked = false; return; }
+    // FIR section notams: identified by being inside a '#fir_...' container
+    if (ni.closest('[id^="fir_"]')) { cb.checked = false; return; }
+    cb.checked = true;
+  });
+}
+// Show selbar when results are rendered
+function showSelbar() {
+  document.getElementById('selbar').style.display = 'flex';
+}
+
+
+// ── Default settings persistence ──────────────────────────────────────────
+const DEFAULT_FIELDS = ['dep','dest','route-variant','acft','acft-cat','rules','fl','max-dur','ai-lines','ai-chars',
+  'radnm','obst-thresh',
+  'filt-obst','filt-dedup','filt-equip','eq-lpv','eq-lnav-vnav','eq-lnav'];
+  // dep-date, dep-time and dt-lock excluded — managed permanently via prefs JSON
+
+async function saveDefaults() {
+  const btn = event.currentTarget;
+  const orig = btn.textContent;
+  try {
+    const defaults = {};
+    for (const id of DEFAULT_FIELDS) {
+      if (id === 'route-variant') { defaults[id] = _routeVariant(); continue; }
+      const el = document.getElementById(id);
+      if (!el) continue;
+      defaults[id] = el.type === 'checkbox' ? el.checked : el.value;
+    }
+    // Also collect current prefs (pdf_email, dt_locked, dep_date, dep_time)
+    const email  = getArEmail();
+    const locked = _dtLocked();
+    const prefs = {
+      ...defaults,
+      pdf_email: (document.getElementById('email-addr')?.value || '').trim(),
+      dt_locked: locked,
+      dep_date:  locked ? document.getElementById('dep-date').value : '',
+      dep_time:  locked ? document.getElementById('dep-time').value : '',
+    };
+    // Save to _prefs.json (server writes locally + pushes to GitHub)
+    await fetch('/prefs/save', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ email, prefs })
+    });
+    // Also mirror to localStorage as offline fallback
+    localStorage.setItem('notam_defaults', JSON.stringify(defaults));
+    btn.textContent = '✓ Saved!';
+    btn.style.background = '#c8e6c9';
+    setTimeout(() => { btn.textContent = orig; btn.style.background = '#e8f5e9'; }, 1500);
+  } catch(e) {
+    alert('Could not save defaults: ' + e.message);
+    btn.textContent = orig; btn.style.background = '#e8f5e9';
+  }
+}
+
+function _applyDefaults(saved) {
+  for (const id of DEFAULT_FIELDS) {
+    if (id === 'route-variant') {
+      if (id in saved) { const rb = document.querySelector('input[name="route-variant"][value="' + saved[id] + '"]'); if (rb) rb.checked = true; }
+      continue;
+    }
+    const el = document.getElementById(id);
+    if (!el || !(id in saved)) continue;
+    if (el.type === 'checkbox') el.checked = saved[id];
+    else el.value = saved[id];
+  }
+  updateBuf(); viz();
+}
+
+async function loadDefaults() {
+  // Try _prefs.json first (cross-device, most authoritative)
+  const email = getArEmail();
+  if (email) {
+    try {
+      const r = await fetch('/prefs/load', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ email })
+      });
+      const data = await r.json();
+      if (data && Object.keys(data).some(k => DEFAULT_FIELDS.includes(k))) {
+        _cachedPrefs = data;
+        _applyDefaults(data);
+        // Mirror to localStorage as offline fallback
+        const mirror = {};
+        for (const id of DEFAULT_FIELDS) if (id in data) mirror[id] = data[id];
+        localStorage.setItem('notam_defaults', JSON.stringify(mirror));
+        return;
+      }
+    } catch(e) { console.warn('loadDefaults from prefs failed:', e.message); }
+  }
+  // Fallback: localStorage
+  try {
+    const raw = localStorage.getItem('notam_defaults');
+    if (!raw) return;
+    _applyDefaults(JSON.parse(raw));
+  } catch(e) { console.warn('loadDefaults error:', e); }
+}
+
+async function saveEmail() {
+  const email  = getArEmail();
+  const pdfVal = (document.getElementById('email-addr').value || '').trim();
+  if (!email) return;
+  const locked = _dtLocked();
+  // Load existing prefs first to preserve DEFAULT_FIELDS values
+  let existing = {};
+  try {
+    const r = await fetch('/prefs/load', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ email })
+    });
+    existing = await r.json();
+  } catch(e) {}
+  const prefs = {
+    ...existing,
+    pdf_email: pdfVal,
+    dt_locked: locked,
+    dep_date:  locked ? document.getElementById('dep-date').value : '',
+    dep_time:  locked ? document.getElementById('dep-time').value : '',
+  };
+  await fetch('/prefs/save', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ email, prefs })
+  }).catch(() => {});
+}
+async function loadEmail() {
+  const ar = getArEmail();
+  if (ar) {
+    try {
+      // Use cached prefs from loadDefaults if available, else fetch
+      const data = _cachedPrefs || await (await fetch('/prefs/load', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ email: ar })
+      })).json();
+      const val = data.pdf_email || ar;
+      document.getElementById('email-addr').value = val;
+      if (data.dt_locked) {
+        _setDateTimeLock(true);
+        if (data.dep_date) document.getElementById('dep-date').value = data.dep_date;
+        if (data.dep_time) document.getElementById('dep-time').value = data.dep_time;
+      } else {
+        _setDateTimeLock(false);
+      }
+      return;
+    } catch(e) {}
+  }
+  // Offline fallback: use autorouter email
+  if (ar) document.getElementById('email-addr').value = ar;
+}
+function emailPdf() {
+  const addr = (document.getElementById('email-addr').value || '').trim();
+  if (!addr) { alert('Enter an email address first.'); return; }
+  saveEmail(); // persist the current address to prefs immediately
+  const dep  = document.getElementById('dep').value  || '?';
+  const dest = document.getElementById('dest').value || dep;
+  const dt   = document.getElementById('dep-date').value || '';
+  const subj = encodeURIComponent('NOTAM Briefing — ' + buildPrintTitle());
+  const body = encodeURIComponent(
+    'Please find attached the NOTAM briefing PDF.\n\nRoute: ' + dep + ' → ' + dest +
+    '\nDate: ' + dt + '\n\nSteps:\n1. Click "🖨 Print / PDF" and save as PDF\n2. Attach the PDF to this email'
+  );
+  const _eFname = buildPrintTitle() + '.pdf';
+  const fullBody = body + encodeURIComponent('\n\nFile to attach: ' + _eFname);
+  window.open('mailto:' + encodeURIComponent(addr) + '?subject=' + subj + '&body=' + fullBody);
+}
+
+<!--MAPRENDER_END-->
+if (typeof _IS_MAP_PAGE === 'undefined') {
+  loadDefaults();
+  loadArCreds();    // must run before loadEmail so ar email is available as fallback
+  initSync();
+  initAI();
+  loadEmail().then(() => {
+    initDepDateTime();    // skipped if dt-lock is active
+    loadSnapshot(true);   // runs after email+lock are settled
+  });
+  loadAirportDb();
+  checkAzbaDiscrepancy();
+}
+
+// ── Print map: rasterize Leaflet to a single <img> before printing ────────
+// On Windows, Chromium/Edge print drivers render each Leaflet tile <img>
+// separately, creating visible horizontal seam lines in the PDF.
+// ── Print: pre-load all map tiles before calling window.print() ────────────
+// Problem: on Windows, Chromium starts rendering the print layout before tiles
+// outside the current viewport have loaded, leaving grey rectangles in the PDF.
+// Solution: intercept the Print button, resize the map to print dimensions,
+// wait for every tile to finish loading (via Leaflet's tileload events), then
+// call window.print(). This guarantees a fully-loaded map in the output.
+
+// ── Print: use Leaflet's own pixel projection to build a static canvas ────
+// This approach avoids all CSS transform issues by bypassing the live Leaflet
+// DOM entirely — we compute pixel coordinates ourselves, fetch tiles through
+// the local server, composite onto a canvas, and swap it in for printing.
+
+// Extract a centre point and tailored zoom level for a single NOTAM's geometry
+function _notamMapView(n) {
+  let centre = null, radiusNm = null, lengthNm = null, widthNm = null;
+  if (isObstacle(n)) {
+    const d = obstData(n);
+    centre = d?.coords || null;
+  } else if (isCircleZone(n)) {
+    const z = parseCircleZone(n);
+    if (z) { centre = z.centre; radiusNm = z.radiusM / 1852; }
+  } else if (isPjeZone(n)) {
+    const z = parsePjeZone(n);
+    if (z) { centre = z.centre; radiusNm = z.radiusM / 1852; }
+  } else if (isAxisZone(n)) {
+    const z = parseAxisZone(n);
+    if (z) { centre = z.center; lengthNm = z.lengthNm; widthNm = z.widthNm; }
+  } else if (isArcPolygon(n) || isZoneNotam(n) || isInlinePolygon(n)) {
+    const pts = parseMultiCoord(n.iteme || '');
+    if (pts.length) {
+      const lats = pts.map(p => p[0]), lons = pts.map(p => p[1]);
+      centre = { lat: (Math.min(...lats) + Math.max(...lats)) / 2,
+                 lon: (Math.min(...lons) + Math.max(...lons)) / 2 };
+      // Approximate extent in NM (1 deg lat ≈ 60NM)
+      lengthNm = (Math.max(...lats) - Math.min(...lats)) * 60;
+      widthNm  = (Math.max(...lons) - Math.min(...lons)) * 60 * Math.cos(centre.lat * Math.PI/180);
+    }
+  }
+  if (!centre) centre = parseSingleCoord(n.iteme || '');
+  if (!centre) return null;
+
+  // Determine a tailored zoom from the geometry's extent
+  let extentNm = 8; // default fallback extent
+  if (radiusNm != null) extentNm = radiusNm * 2.4;
+  else if (lengthNm != null || widthNm != null) extentNm = Math.max(lengthNm || 0, widthNm || 0) * 1.6;
+
+  // Zoom level: each step roughly halves the visible extent.
+  // Calibrated so ~8NM extent ≈ zoom 11, ~40NM ≈ zoom 9, ~100NM ≈ zoom 7.5
+  let zoom = 12 - Math.log2(Math.max(extentNm, 1) / 4);
+  zoom = Math.max(6, Math.min(13, Math.round(zoom * 2) / 2)); // clamp 6–13, half-steps
+
+  return { lat: centre.lat, lng: centre.lon, zoom };
+}
+
+function openMapFullscreen(notam) {
+  if (!obstMap || !window._lastMapArgs) return;
+  let centerObj, zoom;
+  if (notam) {
+    // Centre and zoom tailored to this specific NOTAM's geometry
+    const view = _notamMapView(notam);
+    if (view) {
+      centerObj = { lat: view.lat, lng: view.lng };
+      zoom = view.zoom;
+    }
+  }
+  if (!centerObj) {
+    const c = obstMap.getCenter();
+    centerObj = { lat: c.lat, lng: c.lng };
+    zoom = obstMap.getZoom();
+  }
+  const legend = document.getElementById('map-legend')?.innerHTML || '';
+  const dataKey = 'notam_map_' + Date.now();
+  try {
+    sessionStorage.setItem(dataKey, JSON.stringify({
+      args:        window._lastMapArgs,
+      center:      centerObj,
+      zoom:        zoom,
+      legend:      legend,
+      nearbyIcaos: window._nearbyIcaos || [],
+      brief_start: _briefStart || 0,
+      brief_end:   _briefEnd   || 0
+    }));
+  } catch(e) { alert('Map data too large: ' + e.message); return; }
+  window.open(location.origin + '/map?key=' + encodeURIComponent(dataKey), '_blank');
+}
+
+function lngToTileX(lng, zoom) {
+  return ((lng + 180) / 360) * Math.pow(2, zoom);
+}
+function latToTileY(lat, zoom) {
+  const r = lat * Math.PI / 180;
+  return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, zoom);
+}
+
+function applySnapshotDiff(allApts, shownFirs) {
+  // snapApts: visible-NOTAM airports, excluding FIR stations not crossed by this route
+  const snapApts = {};
+  for (const [icao, ad] of Object.entries(allApts)) {
+    // If this ICAO is a FIR (ends in RR/FF/BB/MM/EE etc from FIR_MAP),
+    // only include it if it's in the shown FIRs for this route
+    if (shownFirs && !shownFirs.has(icao)) {
+      // Check if it's a FIR-type ICAO (appears as a value in FIR_MAP)
+      const isFirIcao = FIR_MAP.some(([, fir]) => fir === icao);
+      if (isFirIcao) continue; // skip non-crossed FIR
+    }
+    const visible = (ad.notams || []).filter(n =>
+      !isChecklist(n) && !shouldHideByRules(n) && !shouldHideByAltitude(n) &&
+      !shouldHideEquipment(n) && !shouldHideObst(n) && !_never[_notamId(n)]);
+    if (visible.length > 0) snapApts[icao] = { ...ad, notams: visible };
+  }
+  if (!_snapLoaded || Object.keys(_snapshot).length === 0) {
+    // No snapshot — save current NOTAMs as the new snapshot automatically
+    const snap = {};
+    for (const [, ad] of Object.entries(snapApts)) {
+      for (const n of (ad.notams || [])) {
+        const id = _notamId(n);
+        snap[id] = { number: n.number, year: n.year, series: n.series,
+          itema: n.itema, iteme: (n.iteme || '').slice(0, 500),
+          startvalidity: n.startvalidity, endvalidity: n.endvalidity,
+          scope: n.scope, traffic: n.traffic, purpose: n.purpose };
+      }
+    }
+    const k = _snapKey();
+    _saveSnapshot(k, snap);  // first fetch — establish baseline notams
+    _snapshot = snap; _snapLoaded = true;
+    const el = document.getElementById('snapshot-status');
+    if (el) el.textContent = '📸 Snapshot saved: ' + Object.keys(snap).length + ' NOTAMs';
+    return;
+  }
+
+  // Build set of currently VISIBLE NOTAM IDs (same filters as snapApts).
+  // GONE = not in current visible set (expired, cancelled, or now filtered out).
+  // NEW = in current visible set but not in snapshot.
+  const currentIds = new Set();
+  for (const [, ad] of Object.entries(snapApts)) {
+    for (const n of (ad.notams || [])) currentIds.add(_notamId(n));
+  }
+
+  // Mark NEW NOTAMs (snapApts already pre-filtered to visible NOTAMs)
+  for (const [, ad] of Object.entries(snapApts)) {
+    for (const n of (ad.notams || [])) {
+      const id = _notamId(n);
+      if (!_snapshot[id]) {
+        // Find the card in DOM by NOTAM number in .nid span
+        const numStr = (n.series || '') + (n.number || '') + '/' + (n.year || '');
+        const cards = [...document.querySelectorAll('.ni')].filter(el => {
+          const nid = el.querySelector('.nid');
+          return nid && nid.textContent.trim() === numStr;
+        });
+        cards.forEach(card => {
+          card.classList.add('snap-new');
+          card.id = 'ni-' + id.replace(/[^a-z0-9]/gi, '_');
+          // Add Ack button
+          if (!card.querySelector('.ack-btn')) {
+            const btn = document.createElement('button');
+            btn.className = 'ack-btn';
+            btn.textContent = '✓ Ack';
+            btn.title = 'Acknowledge: add to snapshot';
+            btn.onclick = (e) => { e.stopPropagation(); ackNotam(n, 'add'); };
+            card.querySelector('.nid')?.appendChild(btn);
+          }
+        });
+      }
+    }
+  }
+
+  updateSnapStatus(); // show NEW count before GONE section renders
+  // Show GONE NOTAMs (in snapshot, not in current visible set)
+  const goneIds = Object.keys(_snapshot).filter(id => !currentIds.has(id) && !_never[id]);
+  if (goneIds.length > 0) {
+    const resultsEl = document.getElementById('results');
+    const existing = document.getElementById('gone-section');
+    if (existing) existing.remove();
+    const goneDiv = document.createElement('div');
+    goneDiv.id = 'gone-section';
+    let h = '<div class="sec-head" style="column-span:all"><span class="sec-badge" '
+      + 'style="background:#616161;color:#fff">⚠ NOTAMs gone or expired for this flight date (' + goneIds.length + ')</span></div>';
+    const _goneDataMap = {};
+    goneIds.forEach(id => {
+      const data = _snapshot[id];
+      _goneDataMap[id] = data;
+      const safeId = id.replace(/[^a-z0-9]/gi, '_');
+      h += '<div class="ni snap-gone" id="ni-' + safeId + '">'
+        + '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">'
+        + '<span class="snap-gone-stamp">GONE</span>'
+        + '<button class="ack-btn" data-gone-id="' + escH(id) + '" onclick="ackGone(this)">✓ Ack gone</button>'
+        + '</div>'
+        + '<div class="snap-gone-content">'
+        + '<span class="ni-icao" onclick="event.stopPropagation();scrollToFlightParams()" title="Go to Aircraft & flight parameters">' + escH((data.itema && data.itema[0]) || '') + '</span>'
+        + '<div class="nhdr"><span class="nid">' + escH(id) + '</span>'
+        + ((data.scope||'') ? '<span class="nbadge">' + escH(data.scope) + '</span>' : '')
+        + ((data.traffic||'') ? '<span class="nbadge">' + escH(data.traffic) + '</span>' : '')
+        + ((data.purpose||'') ? '<span class="nbadge">' + escH(data.purpose) + '</span>' : '')
+        + '</div>'
+        + '<div class="nfield"><span class="nfield-label">E)</span><span class="ne">'
+        + escH(data.iteme || '(text not saved)') + '</span></div>'
+        + (data.startvalidity ? '<div class="nv">From ' + fmtTs(data.startvalidity) + ' → Until ' + fmtTs(data.endvalidity) + '</div>' : '')
+        + '</div>'
+        + '</div>';
+    });
+    goneDiv._goneDataMap = _goneDataMap;
+    goneDiv.innerHTML = h;
+    // Insert before results
+    resultsEl.insertBefore(goneDiv, resultsEl.firstChild);
+    updateSnapStatus(); // update with final GONE count
+  }
+  // Save route metadata only (waypoints/extras/tkof/alt1/alt2).
+  // The NOTAM list in the snapshot is never updated by a fetch — only by ack().
+  const _k = _snapKey();
+  if (_k.dep) {
+    fetch('/snapshot/save', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ ..._k, notams: _snapshot,  // preserve existing baseline
+        _waypoints: wpts.map(w => (document.getElementById(w)?.value || '').toUpperCase().trim()).filter(Boolean),
+        _tkof:   (document.getElementById('tkof')?.value  || '').toUpperCase().trim(),
+        _alt1:   (document.getElementById('alt1')?.value  || '').toUpperCase().trim(),
+        _alt2:   (document.getElementById('alt2')?.value  || '').toUpperCase().trim(),
+        _extras: extras.map(e => (document.getElementById(e)?.value || '').toUpperCase().trim()).filter(Boolean)
+      })
+    });
+  }
+}
+
+function waitForMapTiles(timeoutMs) {
+  return new Promise(resolve => {
+    const container = obstMap.getContainer();
+    const isLoading = () => {
+      const imgs = container.querySelectorAll('.leaflet-tile-container img');
+      return [...imgs].filter(img => !img.classList.contains('leaflet-tile-loaded') && !img.complete).length;
+    };
+    const deadline = Date.now() + timeoutMs;
+    let quietSince = null;
+    function check() {
+      if (isLoading() === 0) {
+        if (!quietSince) quietSince = Date.now();
+        if (Date.now() - quietSince >= 400) { resolve(); return; }
+      } else { quietSince = null; }
+      if (Date.now() > deadline) { resolve(); return; }
+      setTimeout(check, 100);
+    }
+    setTimeout(check, 150);
+  });
+}
+
+async function buildStaticMap(bounds, printW, printH, zoomOverride) {
+  // Use the live map's actual integer zoom — this is the zoom at which Leaflet
+  // loaded tiles and positioned markers. Using any other zoom causes offset
+  // because obstMap.project() at a different zoom gives different pixel coords.
+  // Tile zoom: round liveZoom to nearest integer.
+  // floor(8.30)=8 works but round(8.30)=8 too — both same here.
+  // Key insight: we MUST use the same centre as what the tile grid
+  // was built around. Use bounds.getCenter() — this is stable and
+  // independent of screen scroll/pan state on Android.
+  // Use explicit zoom from preparePrint (captured at print size) if provided
+  const liveZoom = obstMap.getZoom();
+  const zoom = zoomOverride !== undefined
+    ? zoomOverride
+    : Math.max(4, Math.min(14, Math.round(liveZoom)));
+
+  // Project bounds centre at our integer zoom
+  const geoCentre = bounds.getCenter();
+  const centrePx = obstMap.project(geoCentre, zoom);
+  const cTx = centrePx.x / 256;
+  const cTy = centrePx.y / 256;
+
+  const originTx = cTx - printW / 2 / 256;
+  const originTy = cTy - printH / 2 / 256;
+
+  console.log('[map] zoom=' + zoom + ' cTx=' + cTx.toFixed(2) + ' cTy=' + cTy.toFixed(2));
+
+  // Use ceil(cTx) and floor(cTx) to anchor tile range to actual fractional position
+  // Add extra buffer (+2) to ensure all edge tiles are always fetched
+  const halfTX = Math.ceil(printW / 2 / 256) + 2;
+  const halfTY = Math.ceil(printH / 2 / 256) + 2;
+  const tileX0 = Math.floor(cTx) - halfTX;
+  const tileY0 = Math.floor(cTy) - halfTY;
+  const tileX1 = Math.ceil(cTx) + halfTX;
+  const tileY1 = Math.ceil(cTy) + halfTY;
+
+  // Convert lat/lng to canvas pixel — uses same projection as tile placement
+  function geoToCanvas(lat, lng) {
+    const px = obstMap.project(L.latLng(lat, lng), zoom);
+    return {
+      x: Math.round(px.x - originTx * 256),
+      y: Math.round(px.y - originTy * 256)
+    };
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = printW; canvas.height = printH;
+  const ctx = canvas.getContext('2d');
+  // Fallback fill colour while tiles load, matched to the active style so a
+  // slow/failed tile doesn't show a jarring colour mismatch.
+  const _styleKey = getMapStyle();
+  ctx.fillStyle = _styleKey === 'satellite' ? '#2b2b2b'
+    : _styleKey === 'relief'   ? '#cbb892'
+    : _styleKey === 'openaip'  ? '#f0ede5'  // OSM characteristic beige
+    : '#f2efe9';  // CartoCDN light
+  ctx.fillRect(0, 0, printW, printH);
+
+  const fetches = [];
+  let fetchOk = 0, fetchFail = 0;
+  for (let tx = tileX0; tx <= tileX1; tx++) {
+    for (let ty = tileY0; ty <= tileY1; ty++) {
+      const px = Math.round((tx - originTx) * 256);
+      const py = Math.round((ty - originTy) * 256);
+      if (px + 256 < 0 || px > printW || py + 256 < 0 || py > printH) continue;
+      const url = _localOrigin + '/tile/' + getMapStyle() + '/' + zoom + '/' + tx + '/' + ty + '.png?v=' + _styleKey;
+      // Clamp drawing to canvas bounds using source-rect clipping
+      // to handle tiles that partially overlap the canvas edge
+      const dx = Math.max(px, 0);
+      const dy = Math.max(py, 0);
+      const sx = dx - px;  // source offset if tile starts left/above canvas
+      const sy = dy - py;
+      const sw = Math.min(256 - sx, printW - dx);
+      const sh = Math.min(256 - sy, printH - dy);
+      if (sw <= 0 || sh <= 0) continue;
+      const _px = px, _py = py, _dx = dx, _dy = dy, _sx = sx, _sy = sy, _sw = sw, _sh = sh;
+      fetches.push(
+        fetch(url)
+          .then(r => { if (!r.ok) throw new Error(r.status); return r.blob(); })
+          .then(blob => new Promise(res => {
+            const img = new Image();
+            img.onload = () => {
+              ctx.drawImage(img, _sx, _sy, _sw, _sh, _dx, _dy, _sw, _sh);
+              fetchOk++; res();
+            };
+            img.onerror = () => { fetchFail++; res(); };
+            img.src = URL.createObjectURL(blob);
+          }))
+          .catch(e => { fetchFail++; })
+      );
+    }
+  }
+  await Promise.all(fetches);
+  console.log('[map] tiles ok=' + fetchOk + ' fail=' + fetchFail + ' zoom=' + zoom + ' range:x' + tileX0 + '-' + tileX1 + ' y' + tileY0 + '-' + tileY1 + ' originTx=' + originTx.toFixed(2));
+  if (fetchOk === 0) throw new Error('All ' + (fetchOk+fetchFail) + ' tile fetches failed');
+
+  // If the openAIP map style is active, draw the aviation overlay tiles on top
+  // of the base OSM tiles. Overlay tiles only exist at zoom 8+; silently skip
+  // if the zoom is too low or the API key isn't configured.
+  if (_styleKey === 'openaip' && zoom >= 8 && window._openAipApiKey) {
+    const overlayFetches = [];
+    let overlayOk = 0;
+    ctx.globalAlpha = 0.9;
+    for (let tx = tileX0; tx <= tileX1; tx++) {
+      for (let ty = tileY0; ty <= tileY1; ty++) {
+        const px = Math.round((tx - originTx) * 256);
+        const py = Math.round((ty - originTy) * 256);
+        if (px + 256 < 0 || px > printW || py + 256 < 0 || py > printH) continue;
+        const url = _localOrigin + '/tile/openaip-overlay/' + zoom + '/' + tx + '/' + ty + '.png?v=' + zoom;
+        const dx = Math.max(px, 0), dy = Math.max(py, 0);
+        const sx = dx - px, sy = dy - py;
+        const sw = Math.min(256 - sx, printW - dx), sh = Math.min(256 - sy, printH - dy);
+        if (sw <= 0 || sh <= 0) continue;
+        const _px=px,_py=py,_dx=dx,_dy=dy,_sx=sx,_sy=sy,_sw=sw,_sh=sh;
+        overlayFetches.push(
+          fetch(url)
+            .then(r => { if (!r.ok) throw new Error(r.status); return r.blob(); })
+            .then(blob => new Promise(res => {
+              const img = new Image();
+              img.onload = () => { ctx.drawImage(img, _sx, _sy, _sw, _sh, _dx, _dy, _sw, _sh); overlayOk++; res(); };
+              img.onerror = () => res();
+              img.src = URL.createObjectURL(blob);
+            }))
+            .catch(() => {})
+        );
+      }
+    }
+    await Promise.all(overlayFetches);
+    ctx.globalAlpha = 1.0;
+    console.log('[map] openAIP overlay tiles ok=' + overlayOk);
+  }
+
+  // Draw SVG overlay (markers, circles, polygons) using Leaflet's own projection.
+  try {
+
+    // Draw each Leaflet layer by type
+    obstMap.eachLayer(function(layer) {
+      try {
+        // Skip non-geometric layers (popups, tile layers) — tooltips handled separately below
+        if (!layer.options || layer._url !== undefined) return; // tile layer
+        if (layer instanceof L.Popup) return;
+        // Handle permanent tooltips (altitude/zone labels) directly on canvas
+        if (layer instanceof L.Tooltip && layer.options.permanent) {
+          try {
+            const ll = layer.getLatLng();
+            if (!ll) return;
+            const pt = geoToCanvas(ll.lat, ll.lng);
+            // Extract text from tooltip content (strip HTML tags), preserving
+            // embedded newlines (e.g. "upper\n────\nlower" zone labels).
+            const content = layer.getContent();
+            const tmp = document.createElement('div');
+            tmp.innerHTML = typeof content === 'string' ? content : (content?.innerHTML || '');
+            const text = (tmp.textContent || '').trim();
+            if (!text) return;
+            const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            if (!lines.length) return;
+            // Detect colour from span style if present
+            const spanStyle = tmp.querySelector('span')?.style?.color || '';
+            ctx.font = 'bold 10px system-ui,sans-serif';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            const lineH = 12;
+            const maxW = Math.max(...lines.map(l => ctx.measureText(l).width));
+            const pad = 2, tw = maxW + pad * 2, th = lines.length * lineH + pad;
+            const ox = layer.options.direction === 'right' ? 8 : -(tw / 2);
+            const oy = layer.options.direction === 'top'   ? -(th + 4) : -(th / 2) + lineH / 2;
+            // Background
+            ctx.globalAlpha = 0.78;
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(pt.x + ox - pad, pt.y + oy - lineH/2, tw, th);
+            ctx.globalAlpha = 1;
+            // Text -- one fillText call per line, centred within the box
+            ctx.fillStyle = spanStyle || '#333333';
+            lines.forEach((line, i) => {
+              const lineW = ctx.measureText(line).width;
+              const lineX = pt.x + ox + (tw - pad * 2 - lineW) / 2;
+              ctx.fillText(line, lineX, pt.y + oy + i * lineH);
+            });
+          } catch(e) {}
+          return;
+        }
+        // Handle RTBA stacked labels (markers with a divIcon, not tooltips) —
+        // these carry multi-line zone activation info (ceiling/name/floor per
+        // zone) that the live map renders as HTML, so we re-parse and redraw
+        // the same text directly on canvas for print.
+        if (layer instanceof L.Marker && layer.options.icon && layer.options.icon.options
+            && layer.options.icon.options.html && layer.options.pane === 'azbaPane') {
+          try {
+            const ll = layer.getLatLng();
+            if (!ll) return;
+            const pt = geoToCanvas(ll.lat, ll.lng);
+            const tmp = document.createElement('div');
+            tmp.innerHTML = layer.options.icon.options.html;
+            // Each stacked line is its own <span> (or <br>-separated); collect
+            // both per-span colour and text so the printed label matches the
+            // on-screen styling (ceiling/floor in stroke colour, name bolded).
+            const spans = Array.from(tmp.querySelectorAll('span'));
+            const lines = spans.length
+              ? spans.map(s => ({ text: (s.textContent || '').trim(), color: s.style.color || '#333333' }))
+              : (tmp.textContent || '').split('\n').map(t => ({ text: t.trim(), color: '#333333' }));
+            const validLines = lines.filter(l => l.text.length > 0);
+            if (!validLines.length) return;
+            ctx.font = 'bold 9px system-ui,sans-serif';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            const lineH = 11;
+            const maxW = Math.max(...validLines.map(l => ctx.measureText(l.text).width));
+            const pad = 3, tw = maxW + pad * 2, th = validLines.length * lineH + pad;
+            const ox = -(tw / 2);
+            const oy = -(th / 2) + lineH / 2;
+            // Background
+            ctx.globalAlpha = 0.82;
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(pt.x + ox - pad, pt.y + oy - lineH/2, tw, th);
+            ctx.globalAlpha = 1;
+            validLines.forEach((line, i) => {
+              const lineW = ctx.measureText(line.text).width;
+              const lineX = pt.x + ox + (tw - pad * 2 - lineW) / 2;
+              ctx.fillStyle = line.color;
+              ctx.fillText(line.text, lineX, pt.y + oy + i * lineH);
+            });
+          } catch(e) {}
+          return;
+        }
+        if (layer instanceof L.Tooltip) return; // skip non-permanent tooltips (airport names handled separately)
+
+        // CircleMarker (screen pixels radius) vs Circle (meters radius)
+        if (layer.getLatLng && layer.options && layer.options.radius !== undefined) {
+          const ll = layer.getLatLng();
+          const pt = geoToCanvas(ll.lat, ll.lng);
+
+          let r;
+          // L.Circle stores radius in meters in _mRadius.
+          // L.CircleMarker has no _mRadius — its radius is screen pixels.
+          if (layer._mRadius !== undefined) {
+            // L.Circle: convert meters → canvas pixels using Web Mercator scale
+            const metersPerPx = (2 * Math.PI * 6378137 * Math.cos(ll.lat * Math.PI / 180))
+                                 / (Math.pow(2, zoom) * 256);
+            r = layer._mRadius / metersPerPx;
+          } else {
+            // L.CircleMarker: radius in screen pixels, use directly
+            r = Math.max(layer.options.radius || 6, 4);
+          }
+
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, r, 0, Math.PI * 2);
+          ctx.fillStyle   = layer.options.fillColor   || layer.options.color || '#3388ff';
+          ctx.strokeStyle = layer.options.color       || '#3388ff';
+          ctx.lineWidth   = layer.options.weight      || 1;
+          ctx.globalAlpha = layer.options.fillOpacity !== undefined ? layer.options.fillOpacity : 0.2;
+          ctx.fill();
+          ctx.globalAlpha = layer.options.opacity     !== undefined ? layer.options.opacity : 1;
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+        }
+        // Polyline / Polygon (corridor, restricted zones)
+        else if (layer.getLatLngs) {
+          const rings = layer.getLatLngs();
+          const drawRing = (lls) => {
+            if (!lls || !lls.length) return;
+            // Handle nested arrays (polygon with holes)
+            if (Array.isArray(lls[0])) { lls.forEach(drawRing); return; }
+            ctx.beginPath();
+            lls.forEach((ll, i) => {
+              const pt = geoToCanvas(ll.lat, ll.lng);
+              i === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y);
+            });
+            const isDash = layer.options.dashArray;
+            if (layer.options.fill !== false && !isDash) ctx.closePath();
+            ctx.strokeStyle = layer.options.color   || '#3388ff';
+            ctx.lineWidth   = layer.options.weight  || 2;
+            ctx.globalAlpha = layer.options.opacity !== undefined ? layer.options.opacity : 1;
+            if (isDash) {
+              const parts = String(layer.options.dashArray).split(/[, ]+/).map(Number);
+              ctx.setLineDash(parts);
+            } else {
+              ctx.setLineDash([]);
+            }
+            ctx.stroke();
+            ctx.setLineDash([]);
+            if (layer.options.fillOpacity > 0 && !isDash) {
+              ctx.fillStyle   = layer.options.fillColor   || layer.options.color || '#3388ff';
+              ctx.globalAlpha = layer.options.fillOpacity || 0.2;
+              ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+          };
+          drawRing(rings);
+        }
+      } catch(layerErr) { /* skip bad layer */ }
+    });
+  } catch(svgErr) { console.warn('[map] overlay failed:', svgErr); }
+  return canvas;
+}
+
+let _printStaticImg = null;
+let _printStaticImgParent = null;
+let _printStaticImgNextSibling = null;
+let _printStaticOrigHTML = null;
+let _origTitle = document.title; // saved before print, restored after
+
+
+
+function copyFilename() {
+  const name = buildPrintTitle() + '.pdf';
+  const el = document.getElementById('copy-filename-status');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(name).then(() => {
+      if (el) { el.textContent = '✓ Copied: ' + name; setTimeout(() => { el.textContent = ''; }, 4000); }
+    }).catch(() => _showFilenameFallback(name, el));
+  } else {
+    // Clipboard API unavailable (e.g. Safari over non-HTTPS LAN address)
+    _showFilenameFallback(name, el);
+  }
+}
+
+function _showFilenameFallback(name, el) {
+  if (!el) return;
+  // Show the filename in a selectable text input so it can be copied manually
+  el.innerHTML = '<input type="text" readonly value="' + escH(name)
+    + '" style="font-size:10px;color:#555;border:1px solid #ccc;border-radius:3px;'
+    + 'padding:1px 4px;width:auto" onclick="this.select()">';
+  const input = el.querySelector('input');
+  if (input) { input.focus(); input.select(); }
+}
+
+function buildPrintTitle() {
+  const dep   = (document.getElementById('dep')?.value  || '').trim().toUpperCase();
+  const dest  = (document.getElementById('dest')?.value || '').trim().toUpperCase() || dep;
+  const date  = document.getElementById('dep-date')?.value || ''; // YYYY-MM-DD
+  const time  = document.getElementById('dep-time')?.value || ''; // HH:MM
+  // Format: "2026-06-01 05h30 NOTAM LFRB-LFRN" or "... LFRB-LFRN Left"
+  const timeFmt = time.replace(':', 'h');
+  const variant = _routeVariant();
+  const variantSuffix = (variant !== 'Straight') ? ' ' + variant : '';
+  const route = dep + (dest && dest !== dep ? '-' + dest : '') + variantSuffix;
+  const parts = [date, timeFmt, 'NOTAM', route].filter(Boolean);
+  return parts.join(' ');
+}
+
+function setTitleAndPrint() {
+  // Set title synchronously — window.print() must be on the user gesture stack
+  // Push to GitHub happens in background after print dialog opens (non-blocking)
+  // We update BOTH document.title AND the <title> DOM element directly —
+  // Windows "Microsoft Print to PDF" reads the <title> tag for the job name,
+  // while Linux/Mac Firefox uses document.title.
+  _origTitle = document.title;
+  const t = buildPrintTitle();
+  document.title = t;
+  const titleEl = document.querySelector('title');
+  if (titleEl) titleEl.textContent = t;
+  preparePrint();
+  // Push snapshot to GitHub after print dialog opens — background, non-blocking
+  if (_syncEnabled && _syncDirty) {
+    if (_syncTimer) { clearTimeout(_syncTimer); _syncTimer = null; }
+    setTimeout(function() {
+      fetch('/sync/push-all', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({})
+      }).then(function(r) { return r.json(); })
+        .then(function(d) { if (d.status === 'ok') _syncDirty = false; })
+        .catch(function(e) { console.warn('[sync] post-print push failed:', e.message); });
+    }, 500); // small delay so print dialog opens first
+  }
+}
+
+async function preparePrint() {
+  
+  const btn = document.getElementById('print-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Loading map…'; }
+
+  if (obstMap && window._lastMapBounds) {
+    try {
+      // Render canvas at high density for sharp print output
+      // Aspect ratio from screen map — both axes scale equally so no distortion
+      const mapEl = document.getElementById('obstmap');
+      const mapRect = mapEl ? mapEl.getBoundingClientRect() : { width: 700, height: 500 };
+      // iOS Safari has tight canvas memory limits — a 3x scale on a Retina iPad
+      // can produce a canvas large enough to crash the tab when the print
+      // preview is scrolled. Cap the scale on iOS to keep canvas area safe.
+      const _isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+        || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      const scale = _isIOS ? 2 : 3;
+      const printW = Math.round(mapRect.width  * scale);
+      const printH = Math.round(mapRect.height * scale);
+      const liveZoom = Math.round(obstMap.getZoom()) + Math.round(Math.log2(scale));
+      const liveCenter = obstMap.getCenter();
+
+      // Compute bounds from live centre + scaled pixel dimensions at scaled zoom
+      const centerPx = obstMap.project(liveCenter, liveZoom);
+      const swPx = L.point(centerPx.x - printW / 2, centerPx.y + printH / 2);
+      const nePx = L.point(centerPx.x + printW / 2, centerPx.y - printH / 2);
+      const printBounds = L.latLngBounds(
+        obstMap.unproject(swPx, liveZoom),
+        obstMap.unproject(nePx, liveZoom)
+      );
+
+      const canvas = await buildStaticMap(printBounds, printW, printH, liveZoom);
+      const dataUrl = canvas.toDataURL('image/jpeg', _isIOS ? 0.85 : 0.92);
+      if (!dataUrl || dataUrl === 'data:,') throw new Error('canvas.toDataURL returned empty');
+
+      // Insert static image as a normal block element after #map-lcard.
+      // Normal flow means it appears once in the right place when printed.
+      // We hide #obstmap via print CSS, and show this img instead.
+      // Build a complete replacement for #map-lcard that fits on one page
+      const mapLcard = document.getElementById('map-lcard');
+      const legend = document.getElementById('map-legend');
+      const notebox = document.querySelector('.notebox');
+
+      const wrapper = document.createElement('div');
+      wrapper.id = 'map-static-print';
+
+      // Title (same as map-lcard header)
+      const title = document.createElement('div');
+      title.className = 'map-sec-head';
+      const _disc = window._disclosureText || '';
+      title.innerHTML = '<span class="sec-badge obst">Map — obstacles &amp; restricted zones</span>'
+        + (_disc ? ' <span class="map-disclosure">' + _disc + '</span>' : '');
+      wrapper.appendChild(title);
+
+      // Map image
+      const img = document.createElement('img');
+      img.src = dataUrl;
+      img.style.cssText = 'width:100%;display:block;';
+      wrapper.appendChild(img);
+
+      // Legend
+      if (legend) {
+        const legendClone = legend.cloneNode(true);
+        legendClone.removeAttribute('id');
+        wrapper.appendChild(legendClone);
+      }
+
+      // Source disclaimer
+      if (notebox) {
+        const noteClone = notebox.cloneNode(true);
+        noteClone.removeAttribute('id');
+        wrapper.appendChild(noteClone);
+      }
+
+      // No separate sentinel element — break-before is applied directly to
+      // #map-static-print via print CSS, avoiding an extra empty page that
+      // some print engines (Chromium on Linux) reserve for a display:none
+      // sentinel with break-before:always.
+      mapLcard.parentNode.insertBefore(wrapper, mapLcard.nextSibling);
+      _printStaticImg = wrapper;
+      document.body.classList.add('has-static-map');
+      console.log('[map] static wrapper ready for print');
+    } catch(e) {
+      console.error('[map] static build failed:', e.message, e.stack);
+      if (_printStaticImg) { _printStaticImg.remove(); _printStaticImg = null; }
+    }
+  }
+
+  if (btn) { btn.disabled = false; btn.textContent = '🖨 Print / PDF'; }
+
+  // Wait for the browser to actually paint the newly-inserted static map image
+  // before opening the print dialog -- setTimeout(0) is not enough since the
+  // browser may not have completed layout/paint yet. Two requestAnimationFrame
+  // calls ensure the DOM has rendered: the first triggers a layout pass,
+  // the second confirms the frame was actually painted to screen.
+  // openAIP also fetches an overlay tile pass (more tiles = more time needed),
+  // so we add an extra frame for that style.
+  const _isOpenAip = getMapStyle() === 'openaip';
+  function _doPrint() {
+    window.print();
+    // Android Chrome doesn't fire afterprint for PDF saves — restore after 3s
+    setTimeout(restoreAfterPrint, 3000);
+  }
+  function _waitAndPrint() {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (_isOpenAip) {
+          requestAnimationFrame(_doPrint);
+        } else {
+          _doPrint();
+        }
+      });
+    });
+  }
+  _waitAndPrint();
+}
+
+function restoreAfterPrint() {
+  // Restore title
+  const _rt = _origTitle || '✈ NOTAM Flight Briefing Tool — v1';
+  document.title = _rt;
+  const _titleEl = document.querySelector('title');
+  if (_titleEl) _titleEl.textContent = _rt;
+  // Remove static overlay — Leaflet DOM was never touched so map is fine
+  if (_printStaticImg) { _printStaticImg.remove(); _printStaticImg = null; }
+  const stale = document.getElementById('map-static-print');
+  if (stale) stale.remove();
+  document.body.classList.remove('has-static-map');
+  // Remove the temporary print debug section
+
+}
+
+window.addEventListener('afterprint', restoreAfterPrint);
+
+// Restore map view after printing
+
+if (typeof _IS_MAP_PAGE === 'undefined') { viz(); updateBuf(); }
