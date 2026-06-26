@@ -8,10 +8,12 @@ PORT=8766
 LOG_FILE="${ROOT}/logs/notam_server.log"
 URL="http://localhost:${PORT}"
 
-# ── 1. Require an active virtual environment ──────────────────────────────────
-if [[ -z "${VIRTUAL_ENV:-}" ]]; then
-    echo "ERROR: No virtual environment active."
-    echo "  Create one:  python3 -m venv .venv"
+# ── 1. Activate virtual environment ───────────────────────────────────────────
+if [[ -f "${ROOT}/.venv/bin/activate" ]]; then
+    source "${ROOT}/.venv/bin/activate"
+elif [[ -z "${VIRTUAL_ENV:-}" ]]; then
+    echo "ERROR: No virtual environment found at ${ROOT}/.venv"
+    echo "  Create one:  python -m venv .venv"
     echo "  Activate:    source .venv/bin/activate"
     echo "  Install:     pip install -r requirements.txt"
     exit 1
@@ -26,14 +28,12 @@ fi
 # ── 3. Regenerate maprender.js from current HTML ─────────────────────────────
 python "${ROOT}/src/update_maprender.py"
 
-# ── 4. If server already running, just open the browser ───────────────────────
-if python3 -c "
-import socket; s=socket.socket()
-s.settimeout(1); s.connect(('localhost', ${PORT})); s.close()
-" 2>/dev/null; then
-    echo "Server already running — opening browser."
-    termux-open-url "${URL}"
-    exit 0
+# ── 4. Kill any existing server on the port ───────────────────────────────────
+EXISTING_PID=$(lsof -ti tcp:${PORT} 2>/dev/null || true)
+if [[ -n "${EXISTING_PID}" ]]; then
+    echo "Stopping existing server (PID ${EXISTING_PID})…"
+    kill "${EXISTING_PID}" 2>/dev/null || true
+    sleep 1
 fi
 
 # ── 5. Ensure logs directory exists ───────────────────────────────────────────

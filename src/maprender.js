@@ -3495,11 +3495,21 @@ function raimStatusHtml(data, loading) {
   }
 
   if (!data || !data.ok) {
-    // Not configured or fetch error — show only if we have something useful to say
+    // Not configured — silently omit
     if (data && data.error && data.error.includes('not configured')) {
-      return ''; // silently omit — user didn't set up AUGUR, no need to alarm them
+      return '';
     }
     const errMsg = (data && data.error) ? data.error : 'Unknown error';
+    // "No prediction available" — scenario window not yet published, temporary
+    if (errMsg.includes('No AUGUR prediction available')) {
+      return '<div class="lcard raim-status-card" style="-webkit-column-span:all;column-span:all;'
+        + 'break-before:avoid;font-size:11px;color:#555;background:#FFF8E1;'
+        + 'border-left:3px solid #F9A825;padding:6px 10px;border-radius:6px">'
+        + '⚠ GNSS RAIM — ' + escH(errMsg)
+        + ' — <a href="https://augur.eurocontrol.int/tool/" target="_blank" '
+        + 'style="color:#1565C0;text-decoration:underline">augur.eurocontrol.int</a>'
+        + '</div>';
+    }
     return '<div class="lcard raim-status-card" style="-webkit-column-span:all;column-span:all;'
       + 'break-before:avoid;font-size:11px;color:#555;background:#F5F5F5;'
       + 'border-left:3px solid #9E9E9E;padding:6px 10px;border-radius:6px">'
@@ -3516,57 +3526,52 @@ function raimStatusHtml(data, loading) {
     .filter(([, v]) => v.outages_in_window && v.outages_in_window.length > 0)
     .sort(([a], [b]) => a < b ? -1 : 1);
 
-  // Show the date the predictions were computed for (start_date sent to AUGUR)
-  const startDate = data.start_date;  // YYYY-MM-DDThh:mm:ssZ
-  const scenarioEnd = data.scenario_end;
-  let staleCaveat = '';
-  if (startDate) {
-    // Extract just the date portion from the ISO datetime string
-    const dateOnly = startDate.slice(0, 10);  // "YYYY-MM-DD"
-    const parts = dateOnly.split('-');
-    const fmtDate = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : dateOnly;
+  // Coverage caveat: mask groups + prediction horizon vs flight window
+  const scenarioEnd = data.scenario_end; // gps_status end_time = actual prediction horizon
 
-    // Group airports by mask angle, sorted highest first
-    const byMask = {};
-    Object.entries(airports).forEach(([code, v]) => {
-      const m = (v.mask_angle || 5.0).toFixed(1);
-      if (!byMask[m]) byMask[m] = [];
-      byMask[m].push(code);
-    });
-    const maskLines = Object.keys(byMask)
-      .sort((a, b) => parseFloat(b) - parseFloat(a))
-      .map(m => `mask ${parseFloat(m)}°: ${byMask[m].join(', ')}`)
-      .join(' · ');
+  // Group airports by mask angle, sorted highest first
+  const byMask = {};
+  Object.entries(airports).forEach(([code, v]) => {
+    const m = (v.mask_angle || 5.0).toFixed(1);
+    if (!byMask[m]) byMask[m] = [];
+    byMask[m].push(code);
+  });
+  const maskLines = Object.keys(byMask)
+    .sort((a, b) => parseFloat(b) - parseFloat(a))
+    .map(m => `mask ${parseFloat(m)}°: ${byMask[m].join(', ')}`)
+    .join(' · ');
 
-    staleCaveat = '<div style="margin-top:4px;font-size:10px;color:#888">'
-      + escH(maskLines) + '<br>'
-      + 'AUGUR predictions for ' + escH(fmtDate)
-      + ' — always verify at <a href="https://augur.eurocontrol.int/tool/" target="_blank" '
-      + 'style="color:#1565C0;text-decoration:underline">augur.eurocontrol.int</a>.'
-      + '</div>';
-  } else if (data.scenario_stale) {
-    staleCaveat = '<div style="margin-top:4px;font-size:10px;color:#E65100">'
-      + '⚠ AUGUR scenario window (' + escH(_raimFmtDate(scenarioEnd))
-      + ') does not cover the planned flight — predictions may be unreliable.'
-      + '</div>';
-  } else if (scenarioEnd && _briefEnd) {
-    const scenEnd = new Date(scenarioEnd).getTime() / 1000;
-    if (scenEnd < _briefEnd) {
-      staleCaveat = '<div style="margin-top:4px;font-size:10px;color:#E65100">'
-        + '⚠ AUGUR prediction horizon: ' + escH(_raimFmtDate(scenarioEnd))
-        + ' — flight extends beyond this window.'
-        + '</div>';
+  // Coverage check: does the prediction horizon cover the full flight?
+  let coverageNote = '';
+  if (scenarioEnd && _briefEnd) {
+    const horizonTs = new Date(scenarioEnd).getTime() / 1000;
+    if (horizonTs < _briefEnd) {
+      coverageNote = '<br><span style="color:#E65100">⚠ Prediction horizon '
+        + escH(_raimFmtDate(scenarioEnd))
+        + ' — flight extends beyond this window.</span>';
     }
   }
+
+  const staleCaveat = '<div style="margin-top:4px;font-size:10px;color:#888">'
+    + escH(maskLines) + '<br>'
+    + 'AUGUR predictions up to ' + escH(_raimFmtDate(scenarioEnd))
+    + ' — always verify at <a href="https://augur.eurocontrol.int/tool/" target="_blank" '
+    + 'style="color:#1565C0;text-decoration:underline">augur.eurocontrol.int</a>.'
+    + coverageNote
+    + '</div>';
 
   const officialLink = '';
 
   if (withOutages.length === 0) {
-    // No outages — green card
+    // No outages — green card, or yellow if flight extends beyond prediction horizon
+    const partialCoverage = coverageNote !== '';
+    const cardColor = partialCoverage ? '#F57F17' : '#2E7D32';
+    const cardBg    = partialCoverage ? '#FFF8E1' : '#E8F5E9';
+    const cardMark  = partialCoverage ? '⚠ No GNSS RAIM outages predicted within horizon' : '✓ No GNSS RAIM outages predicted during planned flight';
     return '<div class="lcard raim-status-card" style="-webkit-column-span:all;column-span:all;'
-      + 'break-before:avoid;font-size:11px;color:#2E7D32;background:#E8F5E9;'
-      + 'border-left:3px solid #2E7D32;padding:6px 10px;border-radius:6px">'
-      + '✓ No GNSS RAIM outages predicted during planned flight'
+      + `break-before:avoid;font-size:11px;color:${cardColor};background:${cardBg};`
+      + `border-left:3px solid ${cardColor};padding:6px 10px;border-radius:6px">`
+      + escH(cardMark)
       + ' (LNAV/VNAV · ' + (data.baro_aiding ? 'baro ON' : 'no baro') + ' — ' + Object.keys(airports).join(', ') + ')'
       + staleCaveat
       + officialLink

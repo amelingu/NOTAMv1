@@ -187,15 +187,12 @@ def fetch_raim(airports, brief_start=0.0, brief_end=0.0, baro_aiding=False):
         except Exception:
             expected_end = None
 
-        # start_date is required to get predictions for the correct day.
-        # Without it the API falls back to a hardcoded default (currently
-        # June 15, a known bug AUGUR are fixing). Use the brief_start date
-        # if available, otherwise today's UTC date.
-        if brief_start:
-            start_date = dt.datetime.fromtimestamp(
-                brief_start, tz=dt.timezone.utc).strftime('%Y-%m-%dT00:00:00Z')
-        else:
-            start_date = dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%dT00:00:00Z')
+        # AUGUR /outage/ only accepts start_date = today at midnight UTC.
+        # This matches the AUGUR web tool behaviour and maximises the 72h
+        # prediction window (today 00:00z → today+3 00:00z), covering flights
+        # up to 3 days ahead. Sending the current time instead shortens the
+        # window by the hours already elapsed today.
+        start_date = dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%dT00:00:00Z')
         print(f"[raim] start_date={start_date}", flush=True)
 
         algo_params_base = {**ALGO_PARAMS_BASE, "baro_aiding": baro_aiding}
@@ -231,22 +228,23 @@ def fetch_raim(airports, brief_start=0.0, brief_end=0.0, baro_aiding=False):
 
         # Use /status/ end_time as the authoritative scenario horizon for
         # staleness checking. The gps_status embedded in the /outage/ response
-        # appears to reflect the underlying almanac/computation metadata rather
-        # than the prediction window itself, and is consistently older than
-        # what /status/ reports -- so it's not a reliable staleness indicator.
+        # Now that /status/ and gps_status agree (almanac 176+), use gps_status
+        # end_time as the authoritative prediction horizon for coverage checking.
         scenario_start = (body.get("gps_status") or {}).get("start_time")
-        scenario_end   = expected_end  # from /status/, the authoritative horizon
-        almanac_end    = (body.get("gps_status") or {}).get("end_time")  # almanac period
+        scenario_end   = (body.get("gps_status") or {}).get("end_time")
+        almanac_end    = scenario_end  # same field, kept for result dict
 
-        print(f"[raim] scenario: status_end={expected_end} outage_gps_end={almanac_end}", flush=True)
+        print(f"[raim] scenario: status_end={expected_end} outage_gps_end={scenario_end}", flush=True)
 
-        # Check for staleness: /status/ end_time vs brief_start
+        # Determine how much of the flight window is covered by the prediction.
+        # AUGUR always returns predictions starting from ~now, covering ~72h.
+        # stale = True means the flight window extends beyond the prediction horizon.
         stale = False
-        if scenario_end and brief_start:
+        if scenario_end and brief_end:
             try:
                 end_ts = dt.datetime.fromisoformat(
                     scenario_end.replace("Z", "+00:00")).timestamp()
-                stale = end_ts < brief_start - STALE_HORIZON
+                stale = end_ts < brief_end - STALE_HORIZON
             except Exception:
                 pass
 
@@ -260,6 +258,7 @@ def fetch_raim(airports, brief_start=0.0, brief_end=0.0, baro_aiding=False):
         for loc in body.get("locations") or []:
             code    = loc.get("code", "").upper()
             outages = loc.get("outages") or []
+
             in_window = []
             for o in outages:
                 if brief_start and brief_end:
@@ -274,6 +273,7 @@ def fetch_raim(airports, brief_start=0.0, brief_end=0.0, baro_aiding=False):
                         pass
                 else:
                     in_window = list(outages)
+
             airport_data[code] = {
                 "outages":           outages,
                 "outages_in_window": in_window,
@@ -295,11 +295,23 @@ def fetch_raim(airports, brief_start=0.0, brief_end=0.0, baro_aiding=False):
 
     except urllib.error.HTTPError as e:
         body_bytes = e.read()
-        try:   err_detail = json.loads(body_bytes).get("detail") or str(body_bytes[:200])
-        except Exception: err_detail = body_bytes[:200].decode("utf-8", errors="replace")
+        try:
+            err_json = json.loads(body_bytes)
+            # Handle various AUGUR error formats
+            err_detail = (err_json.get("detail")
+                         or (err_json.get("non_field_errors") or [''])[0]
+                         or str(body_bytes[:200]))
+        except Exception:
+            err_detail = body_bytes[:200].decode("utf-8", errors="replace")
         log.error("[raim] HTTP %s: %s", e.code, err_detail)
+        # Provide a clean user-facing message for known error cases
+        if "No prediction found" in err_detail:
+            user_msg = (f"No AUGUR prediction available for {start_date[:10]} — "
+                        f"scenario window not yet published. Check augur.eurocontrol.int.")
+        else:
+            user_msg = f"HTTP {e.code}: {err_detail}"
         result = {
-            "ok": False, "error": f"HTTP {e.code}: {err_detail}",
+            "ok": False, "error": user_msg,
             "airports": {}, "scenario_start": None, "scenario_end": None,
             "scenario_stale": False, "fetched_at": fetched_at,
         }

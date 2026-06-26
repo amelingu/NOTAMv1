@@ -7,9 +7,11 @@ PORT=8766
 LOG_FILE="${ROOT}/logs/notam_server.log"
 URL="http://localhost:${PORT}"
 
-# ── 1. Require an active virtual environment ──────────────────────────────────
-if [[ -z "${VIRTUAL_ENV:-}" ]]; then
-    echo "ERROR: No virtual environment active."
+# ── 1. Activate virtual environment ───────────────────────────────────────────
+if [[ -f "${ROOT}/.venv/bin/activate" ]]; then
+    source "${ROOT}/.venv/bin/activate"
+elif [[ -z "${VIRTUAL_ENV:-}" ]]; then
+    echo "ERROR: No virtual environment found at ${ROOT}/.venv"
     exit 1
 fi
 
@@ -22,14 +24,12 @@ fi
 # ── 3. Regenerate maprender.js from current HTML ─────────────────────────────
 python3 "${ROOT}/src/update_maprender.py"
 
-# ── 4. If server already running, just open the browser ───────────────────────
-if python3 -c "
-import socket; s=socket.socket()
-s.settimeout(1); s.connect(('localhost', ${PORT})); s.close()
-" 2>/dev/null; then
-    echo "Server already running — opening browser."
-    xdg-open "${URL}" 2>/dev/null &
-    exit 0
+# ── 4. Kill any existing server on the port ───────────────────────────────────
+EXISTING_PID=$(lsof -ti tcp:${PORT} 2>/dev/null || true)
+if [[ -n "${EXISTING_PID}" ]]; then
+    echo "Stopping existing server (PID ${EXISTING_PID})…"
+    kill "${EXISTING_PID}" 2>/dev/null || true
+    sleep 1
 fi
 
 # ── 4. Start server in background ─────────────────────────────────────────────
