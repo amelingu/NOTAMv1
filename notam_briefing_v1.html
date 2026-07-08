@@ -199,6 +199,7 @@ details summary:hover{text-decoration:underline}
   details { display: none !important; }
   .ni.suppressed, .ni.print-hidden { display: none !important; }
 
+  html, body { overscroll-behavior: none; }
   body { background: #fff; padding: 0; margin: 0; font-size: 7.5px; }
   .print-disclosure { display: none !important; } /* merged into map title */
   .notebox { font-size: 10px !important; color: #555 !important; background: none !important; border: none !important; padding: 2px 0 !important; margin-top: 2px !important; }
@@ -1179,6 +1180,10 @@ function isProcedureChange(n) {
 }
 function isMappable(n) {
   if (isProcedureChange(n)) return false;
+  // Runway/taxiway/AD closures are never map obstacles regardless of text content
+  const q = (n.itemq || '').toUpperCase();
+  if (/\/QM[RTA][LC]/.test(q)) return false;  // QMRLC, QMTLC, QMALC etc.
+  if (isFullClosure(n)) return false;
   return isObstacle(n) || isArcPolygon(n) || isZoneNotam(n) || isAxisZone(n) || isCableCarZone(n) || isInlinePolygon(n) || isCircleZone(n) || isPjeZone(n);
 }
 // Parse a multi-point obstacle NOTAM into individual {lat, lon, hgt, elev}
@@ -1257,11 +1262,14 @@ function isFullClosure(n) {
   const e = (n.iteme || '').toUpperCase();
   return /RWY[\s\w\/]+CLS[DE]D?/.test(e) || /RUNWAY\s+CLS[DE]D?/.test(e) ||
     (/PAVED\s+RWY/.test(e) && /CLOS/.test(e)) ||
-    /\bAD\s+CLS[DE]D?\b/.test(e) || /AERODROME\s+CLS[DE]D?/.test(e);
+    /\bAD\s+CLS[DE]D?\b/.test(e) || /AERODROME\s+CLS[DE]D?/.test(e) ||
+    // French
+    /PISTE[\s\w\/]+FERM[EÉ]E?/.test(e) || /\bAD\s+FERM[EÉ]/.test(e) ||
+    /AÉRODROME\s+FERM[EÉ]/.test(e) || /AERODROME\s+FERM[EÉ]/.test(e);
 }
 
 // ── NOTAM colour ───────────────────────────────────────────────────────────
-const CLOSURE_RE = /\b(CLSD|CLOSED|U\/S|UNSERVICEABLE|NOT AVBL|NOT AVAILABLE|OUT OF SERVICE|PROHIBITED|SUSPENDED)\b/;
+const CLOSURE_RE = /\b(CLSD|CLOSED|U\/S|UNSERVICEABLE|NOT AVBL|NOT AVAILABLE|OUT OF SERVICE|PROHIBITED|SUSPENDED|FERM[EÉ]E?|INDISPONIBLE|HORS SERVICE)\b/;
 const MINIMA_RE  = /\b(OCA|OCH|DA\b|DH\b|MDA|MDH|MINIMA|MNM OPS|INCREASED|MODIFIED|CHANGED|LNAV|LPV|VNAV|RNP|ILS|APCH|IAP|PROC)\b/;
 // Obstacle lighting U/S: mappable obstacle whose lighting is unserviceable
 const OBST_LGT_RE = /\b(LGT|LIGHTS?|LIGHTING|OBST\s+LGT|OBSTACLE\s+LGT)\b.*\b(U\/S|UNSERVICEABLE|OUT\s+OF\s+SERVICE|NOT\s+AVBL|NOT\s+AVAILABLE|INOP|INOPERATIVE|EXTD|EXTINGUISHED|UNLIT)\b|\b(U\/S|UNSERVICEABLE|INOP|INOPERATIVE|EXTINGUISHED|UNLIT)\b.*\b(LGT|LIGHTS?|LIGHTING)\b/;
@@ -2266,10 +2274,36 @@ async function go() {
     // ── 1. Coordinates from local airport DB ───────────────────────────────
     setStat('Resolving coordinates…'); setProg(5);
     const coordMap = {};
+    const missingCoords = [];
     [...new Set([...routeSeq, ...exs])].forEach(icao => {
       const c = getCoords(icao);
       if (c) coordMap[icao] = c;
+      else missingCoords.push(icao);
     });
+    // Warn prominently about any ICAOs not found in the airport database
+    // (closed airports, typos, non-ICAO codes) — corridor and nearby scan
+    // will be incomplete without their coordinates.
+    if (missingCoords.length > 0) {
+      const warn = document.createElement('div');
+      warn.id = 'missing-coords-warn';
+      warn.style.cssText = 'background:#FFF8E1;border-left:4px solid #F9A825;padding:8px 12px;'
+        + 'margin-bottom:8px;font-size:11px;color:#555;border-radius:4px;'
+        + '-webkit-column-span:all;column-span:all';
+      warn.innerHTML = '⚠ <strong>Airport(s) not found in database:</strong> '
+        + missingCoords.map(i => `<strong>${i}</strong>`).join(', ')
+        + ' — no corridor scan or nearby airports for these. '
+        + 'The airport may be closed, renamed, or the ICAO code may be incorrect. '
+        + '<a href="https://ourairports.com/airports/" target="_blank" '
+        + 'style="color:#1565C0">Check OurAirports</a>.';
+      const results = document.getElementById('results');
+      // Insert at top of results, before existing content
+      const existing = document.getElementById('missing-coords-warn');
+      if (existing) existing.remove();
+      if (results) results.prepend(warn);
+    } else {
+      const existing = document.getElementById('missing-coords-warn');
+      if (existing) existing.remove();
+    }
 
     // Compute endEpoch from actual route distance at half cruise speed (headwind scenario)
     // Minimum 2h airborne + 1h pre-departure buffer already in startEpoch

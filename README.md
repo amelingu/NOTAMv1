@@ -505,6 +505,8 @@ All entries are commented out by default. Uncomment and adjust based on your own
 - A modern web browser (Firefox, Chrome, Edge)
 - An [autorouter.aero](https://www.autorouter.aero) account (free registration)
 
+> **Important — NOTAM data licensing:** NOTAM data is commercially licensed from Eurocontrol EAD and distributed via autorouter.aero. Each user of NOTAMv1 must use their **own personal autorouter.aero account** and credentials. NOTAM data fetched through your account must not be redistributed to others. NOTAMv1 is designed for personal use only — credentials are stored locally and never shared.
+
 ### Folder structure
 
 ```
