@@ -235,13 +235,15 @@ function parseMultiCoord(text) {
 // ── Obstacle / zone detection ──────────────────────────────────────────────
 // LGT U/S and LIGHTING U/S removed — runway/taxiway lights out of service
 // are NOT physical obstacles. Only match when paired with obstacle context.
-const OBST_RE = /\b(CRANE|OBST|OBSTACLE|TOWER|MAST|CHIMNEY|STACK|PYLON|WIND TURBINE|WTG|DRILL OPR|DRILL|WINDTURBINE|WINDFARM|WINDPARK|OFFSHORE|CABLE CAR|CABLEWAY|WORK MACHINE|WORKING MACHINE|VEHICLE|TRUCK|EXCAVATOR|BUILDING CRANE|TOWER CRANE|MOBILE CRANE|SCAFFOLDING|ANTENNA|SILO|WINDSOCK|TREES?|WOODS?|PINE TREE|PYLONE)\b/i;
+const OBST_RE = /\b(CRANE|OBST|OBSTACLE|TOWER|MAST|CHIMNEY|STACK|PYLON|WIND TURBINE|WTG|DRILL OPR|DRILL|WINDTURBINE|WINDFARM|WINDPARK|OFFSHORE|CABLE CAR|CABLEWAY|WORK MACHINE|WORKING MACHINE|VEHICLE|TRUCK|EXCAVATOR|BUILDING CRANE|TOWER CRANE|MOBILE CRANE|SCAFFOLDING|ANTENNA|SILO|WINDSOCK|TREES?|WOODS?|PINE TREE|PYLONE|PLANTS?|VEGETATION|BUSH|BUSHES|HEDGE|HEDGES|CROP|CROPS)\b/i;
 
 function isObstacle(n) {
   const e = (n.iteme || '').toUpperCase();
   if (!OBST_RE.test(e)) return false;
-  // Exclude procedure-change NOTAMs that mention OBST only in context like "DUE TO OBST"
-  // These have no coordinates and are not physical obstacles on the map
+  // "DUE TO OBST(ACLES)" — obstacle mentioned as a reason/cause, not as the subject.
+  // Normalise line breaks before testing so multi-line text doesn't slip through.
+  const eNorm = e.replace(/\s+/g, ' ');
+  if (/\bDUE TO\s+OBST(ACLES?)?\b/.test(eNorm)) return false;
   // Exclude procedure-change NOTAMs: SID/STAR/approach minima changes that reference
   // OBST only as a justification (e.g. 'DUE TO OBST', 'OBST SLOPE') — no real coords
   if (/\b(MOCA|OCA|OCH|PROC|IAP|FAF|SDF|SID|STAR|SLOPE|GRADIENT|CLIMB GRADIENT|OFZ)\b/.test(e) && !parseSingleCoord(n.iteme || '')) return false;
@@ -348,6 +350,8 @@ function parseCableCar(n) {
 //   PSN: 460450.1N 0061455E RADIUS 2000M
 function isCircleZone(n) {
   if (isObstacle(n) || isAxisZone(n) || isCableCarZone(n)) return false;
+  // If the NOTAM has many inline coords it's a polygon, not a circle
+  if (parseMultiCoord(n.iteme || '').length >= 3) return false;
   return parseCircleZone(n) !== null;
 }
 
@@ -358,12 +362,14 @@ function parseCircleZone(n) {
   const nmMatch = e.match(/(\d+(?:\.\d+)?)\s*NM\b/);
   if (nmMatch) radiusM = parseFloat(nmMatch[1]) * 1852;
   if (!radiusM) {
-    const rM = e.match(/RADIUS\s+(\d+(?:\.\d+)?)\s*(KM|M)\b/);
+    // "RADIUS 500M" -- value must be directly after RADIUS keyword
+    const rM = e.match(/\bRADIUS\s+(\d+(?:\.\d+)?)\s*(KM|M)\b/);
     if (rM) radiusM = parseFloat(rM[1]) * (rM[2] === 'KM' ? 1000 : 1);
   }
   if (!radiusM) {
-    const rM2 = e.match(/(\d+(?:\.\d+)?)\s*(KM|M)\b/);
-    if (rM2 && e.includes('RADIUS')) radiusM = parseFloat(rM2[1]) * (rM2[2] === 'KM' ? 1000 : 1);
+    // "500M RADIUS" -- value must be directly before RADIUS keyword
+    const rM2 = e.match(/(\d+(?:\.\d+)?)\s*(KM|M)\s+RADIUS\b/);
+    if (rM2) radiusM = parseFloat(rM2[1]) * (rM2[2] === 'KM' ? 1000 : 1);
   }
   if (!radiusM || radiusM < 50 || radiusM > 300000) return null;
   const centre = parseSingleCoord(raw);
@@ -546,14 +552,16 @@ function parseCommaCoords(text) {
 // Detect NOTAM with inline polygon coords (ZRT, ZDT, sector modifications)
 function isInlinePolygon(n) {
   const e = (n.iteme || '').toUpperCase();
-  // Must have a zone-type keyword — prevents obstacle/windfarm NOTAMs from matching
-  const hasZoneKeyword = /\b(ZRT|ZDT|FBZ|TSA|TRA|PROHIBITED|RESTRICTED|DANGER|SEGREGATED|UAS|SECTOR|PART\.?\s*\d+\s*[-–]\s*FL)/.test(e);
-  if (!hasZoneKeyword) return false;
   // Must not be a pure procedure-change NOTAM (minima, approaches)
   if (isProcedureChange(n)) return false;
-  // Must have at least 3 coordinate pairs (spaced or comma format)
+  // Must have at least 3 coordinate pairs
   const nCoords = parseMultiCoord(n.iteme || '').length + parseCommaCoords(n.iteme || '').length;
-  return nCoords >= 3;
+  if (nCoords < 3) return false;
+  // Zone-type keyword required for low coord counts to avoid false positives,
+  // but with many coords (≥5) the polygon intent is unambiguous
+  if (nCoords >= 5) return true;
+  const hasZoneKeyword = /\b(ZRT|ZDT|FBZ|TSA|TRA|PROHIBITED|RESTRICTED|DANGER|SEGREGATED|UAS|SECTOR|PART\.?\s*\d+\s*[-–]\s*FL)/.test(e);
+  return hasZoneKeyword;
 }
 
 function isProcedureChange(n) {
@@ -636,6 +644,10 @@ function obstData(n) {
 }
 function shouldHideObst(n) {
   if (!document.getElementById('filt-obst')?.checked) return false;
+  // Zone NOTAMs (circles, polygons, PJE etc.) are never hidden by obstacle
+  // height threshold — they have their own map representation and may contain
+  // obstacle keywords (CRANES, MAST etc.) without being pure point obstacles.
+  if (isZoneNotam(n) || isCircleZone(n) || isAxisZone(n) || isPjeZone(n)) return false;
   const d = obstData(n); if (!d) return false;
   const thresh = parseInt(document.getElementById('obst-thresh')?.value) || 200;
   const effectiveHgt = d.maxHgt != null ? d.maxHgt : d.hgt;
@@ -1838,6 +1850,8 @@ async function go() {
   _addSO2(dest); if (a1) _addSO2(a1); if (a2) _addSO2(a2); exs.forEach(x => _addSO2(x));
     renderAll(routeApts, nearbyApts, allApts, nearbyIcaos, routeSeq, roles, firs, exs, extraFirs, radiusNm, coordMap, legPairs, fetchedAt, startEpoch, endEpoch, summaryOrder);
     applySnapshotDiff(allApts, new Set([...firs, ...extraFirs]));
+    // Push updated snapshot to GitHub after every fetch
+    if (_syncEnabled) _syncSchedulePush();
   } catch(e) {
     setProg(100); setStat(''); btn.disabled = false;
     document.getElementById('results').innerHTML = '<div class="errbox"><strong>Error:</strong> ' + escH(e.message) + '</div>';
