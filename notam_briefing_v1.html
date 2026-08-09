@@ -619,6 +619,20 @@ details summary:hover{text-decoration:underline}
 // No local suppress — use print checkboxes instead
 
 // ── FIR table ─────────────────────────────────────────────────────────────
+// ── FIR_MAP ────────────────────────────────────────────────────────────────────
+// Maps ICAO prefix → FIR ICAO for NOTAM fetching. Used to determine which FIR
+// NOTAMs to fetch for a given route airport (one API call per FIR).
+//
+// CRITICAL RULES:
+// 1. More-specific prefixes (e.g. 'LFRB') must appear BEFORE less-specific ones
+//    (e.g. 'LFR', 'LF') — first match wins via firForIcao().
+// 2. FIR ICAOs (LFRR, LFFF, LFBB, LFMM) are VALUES here, not keys. isMappable()
+//    uses `FIR_MAP.some(([,fir]) => fir === icao)` to detect FIR ICAOs.
+// 3. LFEE is the Reims FIR — currently missing as a fetchable FIR. Many LFS*
+//    airports are mapped to LFMM (wrong) rather than LFEE. Known gap, deferred.
+// 4. Corridor and nearby airport scans both depend on coordMap[airport] — if an
+//    airport is not in OurAirports DB (e.g. closed airports like LFBV), it will
+//    have no coordinates, no corridor, and a warning banner will be shown.
 const FIR_MAP = [
   // ── France: Brest FIR (LFRR) — Brittany, Normandy west, Atlantic islands ──
   ['LFRA','LFRR'],['LFRB','LFRR'],['LFRC','LFRR'],['LFRD','LFRR'],
@@ -852,8 +866,22 @@ function parseMultiCoord(text) {
 // ── Obstacle / zone detection ──────────────────────────────────────────────
 // LGT U/S and LIGHTING U/S removed — runway/taxiway lights out of service
 // are NOT physical obstacles. Only match when paired with obstacle context.
+// ── Obstacle / zone detection ───────────────────────────────────────────────
+// OBST_RE: matches physical obstacle keywords in iteme text.
+// CRITICAL: "DUE TO OBST(ACLES?)" is explicitly excluded in isObstacle() —
+// that phrase means the NOTAM is about something else (procedure change, minima
+// modification) and the obstacle is only mentioned as a reason/cause.
+// Add new keywords here when encountered in the wild. Plurals must be explicit
+// (CRANES not just CRANE) since \b word boundary blocks the S.
 const OBST_RE = /\b(CRANE|OBST|OBSTACLE|TOWER|MAST|CHIMNEY|STACK|PYLON|WIND TURBINE|WTG|DRILL OPR|DRILL|WINDTURBINE|WINDFARM|WINDPARK|OFFSHORE|CABLE CAR|CABLEWAY|WORK MACHINE|WORKING MACHINE|VEHICLE|TRUCK|EXCAVATOR|BUILDING CRANE|TOWER CRANE|MOBILE CRANE|SCAFFOLDING|ANTENNA|SILO|WINDSOCK|TREES?|WOODS?|PINE TREE|PYLONE|PLANTS?|VEGETATION|BUSH|BUSHES|HEDGE|HEDGES|CROP|CROPS)\b/i;
 
+// isObstacle: returns true only for NOTAMs whose PRIMARY subject is a physical
+// obstacle. Must return false for:
+//   - "DUE TO OBST/OBSTACLES" — reason clause, not the subject
+//   - Procedure changes (SID/STAR/minima) that cite obstacles as justification
+//   - Zone NOTAMs (circles/polygons) — those are handled by isCircleZone etc.
+// isMappable() calls isObstacle() first, so returning true here triggers map pin.
+// shouldHideObst() also uses this; zone NOTAMs are excluded there separately.
 function isObstacle(n) {
   const e = (n.iteme || '').toUpperCase();
   if (!OBST_RE.test(e)) return false;
@@ -965,6 +993,13 @@ function parseCableCar(n) {
 //   1.1NM RADIUS CIRCLE AROUND PSN: 460553N0062021E
 //   CIRCLE OF 3NM RADIUS ... PSN 460622.5N 0045103.6E
 //   PSN: 460450.1N 0061455E RADIUS 2000M
+// isCircleZone / parseCircleZone:
+// CRITICAL: parseCircleZone must not match a metric value (e.g. "VERTICAL: 100M")
+// as a radius. The radius regex requires the value to be DIRECTLY adjacent to the
+// RADIUS keyword: "RADIUS 500M" or "500M RADIUS". This was broken when a captive
+// balloon NOTAM ("HORIZONTAL: 20M RADIUS CIRCLE AROUND THE SHIP") with 22 polygon
+// coords was misidentified as a 100m circle (the "VERTICAL: 100M" was matched).
+// The polygon-wins-over-circle rule (≥3 coords → not a circle) prevents this.
 function isCircleZone(n) {
   if (isObstacle(n) || isAxisZone(n) || isCableCarZone(n)) return false;
   // If the NOTAM has many inline coords it's a polygon, not a circle
@@ -1167,6 +1202,14 @@ function parseCommaCoords(text) {
 }
 
 // Detect NOTAM with inline polygon coords (ZRT, ZDT, sector modifications)
+// isInlinePolygon: detects NOTAMs that define an airspace zone as a list of
+// inline coordinates (not a circle or arc). Two thresholds:
+//   ≥5 coords: polygon intent is unambiguous even without a zone keyword
+//              (e.g. captive balloon areas, offshore wind survey areas)
+//   3-4 coords: zone keyword (ZRT, TRA, RESTRICTED etc.) required to avoid
+//              false positives on obstacle NOTAMs with multiple PSN entries
+// FRAGILE: lowering the ≥5 threshold risks classifying multi-PSN obstacle
+// NOTAMs as polygons. Raising it risks missing legitimate zone NOTAMs.
 function isInlinePolygon(n) {
   const e = (n.iteme || '').toUpperCase();
   // Must not be a pure procedure-change NOTAM (minima, approaches)
@@ -1186,6 +1229,19 @@ function isProcedureChange(n) {
   return /\b(OCA|OCH|DA\b|DH\b|MDA|MDH|MINIMA|MNM OPS|LPV|LNAV|VNAV|APCH|IAP)\b/.test(e) &&
     !/\b(TSA|TRA|PROHIBITED|RESTRICTED|DANGER|SEGREGATED|UAS)\b/.test(e);
 }
+// isMappable: decides whether a NOTAM gets a 📍 map pin and green background.
+// PRIORITY ORDER (first match wins — do not reorder without careful testing):
+//   1. isProcedureChange → false (never map minima/approach changes)
+//   2. Closure Q-codes (QMRLC etc.) → false (runway closures are not map obstacles)
+//   3. isFullClosure → false (same reason)
+//   4. isObstacle → true (point obstacle with coordinates)
+//   5. isArcPolygon / isZoneNotam / isAxisZone → true (airspace zones)
+//   6. isCableCarZone → true
+//   7. isInlinePolygon → true (≥5 coords even without zone keyword; ≥3 with keyword)
+//   8. isCircleZone → true (only if ≤2 inline coords; radius must be adjacent to RADIUS keyword)
+//   9. isPjeZone → true
+// FRAGILE: adding a new check here can accidentally suppress or reveal map pins
+// for classes of NOTAMs that weren't tested. Always test with real NOTAM examples.
 function isMappable(n) {
   if (isProcedureChange(n)) return false;
   // Runway/taxiway/AD closures are never map obstacles regardless of text content
@@ -1259,6 +1315,11 @@ function obstData(n) {
   const coords = allCoords.length > 0 ? { lat: allCoords[0][0], lon: allCoords[0][1] } : parseSingleCoord(text);
   return { hgt, elev, coords, allCoords };
 }
+// shouldHideObst: hides obstacle NOTAMs below the height threshold.
+// CRITICAL: zone NOTAMs (circles, polygons, PJE areas, axis zones) must NEVER
+// be hidden by the obstacle height filter, even if they contain obstacle keywords
+// like CRANE or MAST. They have their own map representation and operational
+// significance regardless of height. Only pure point obstacles are filtered.
 function shouldHideObst(n) {
   if (!document.getElementById('filt-obst')?.checked) return false;
   // Zone NOTAMs (circles, polygons, PJE etc.) are never hidden by obstacle
@@ -1541,6 +1602,13 @@ function loadArCreds() {
   if (e && e.includes('@') && document.getElementById('ar-email')) document.getElementById('ar-email').value = e;
   else if (e) localStorage.removeItem('notam_ar_email'); // purge corrupt entry
   if (p && document.getElementById('ar-pass')) document.getElementById('ar-pass').value = p;
+  // Restore cached token if still valid — avoids requesting a new token on every page load
+  const savedToken  = localStorage.getItem('notam_ar_token');
+  const savedExpiry = parseInt(localStorage.getItem('notam_ar_token_expiry') || '0');
+  if (savedToken && savedExpiry > Date.now() + 120000) {
+    _arToken = savedToken;
+    _arTokenExpiry = savedExpiry;
+  }
 }
 
 async function getArToken(_retry = 0) {
@@ -1576,6 +1644,11 @@ async function getArToken(_retry = 0) {
   if (!d.access_token) throw new Error('No access_token in auth response');
   _arToken = d.access_token;
   _arTokenExpiry = Date.now() + (parseInt(d.expires_in) || 3600) * 1000;
+  // Persist token so it survives page reloads — reuse avoids exhausting the 20-token limit
+  try {
+    localStorage.setItem('notam_ar_token', _arToken);
+    localStorage.setItem('notam_ar_token_expiry', String(_arTokenExpiry));
+  } catch(e) {}
   return _arToken;
 }
 
@@ -1601,6 +1674,20 @@ async function arGet(path, _retry = 0) {
   return r.json();
 }
 
+// fetchNotamsForIcaos: fetches NOTAMs from autorouter for a list of ICAOs.
+// CRITICAL — limit and batching:
+//   - limit=800 is required. FIRs like LFRR can have 150+ NOTAMs. The old
+//     limit=100 caused spurious GONE NOTAMs when airports were added to a route
+//     (the shared limit meant different NOTAMs were returned each time).
+//   - FIR ICAOs (LFRR, LFFF etc.) are fetched INDIVIDUALLY, not batched with
+//     airports. Batching a FIR with airports causes the FIR's NOTAMs to be
+//     truncated by the shared limit. See go() for the batching logic.
+//
+// CRITICAL — result keying:
+//   A NOTAM with itema=["LFEE","LFFF"] fetched via LFFF request is stored under
+//   "LFFF" in results (first itema that matches the request list), but _notamId()
+//   returns "LFEE:..." (using itema[0]). This means the snapshot key and the
+//   allApts storage key can differ. applySnapshotDiff() must handle this correctly.
 async function fetchNotamsForIcaos(icaoList, startEpoch, endEpoch, limit = 800) {
   const encoded = encodeURIComponent(JSON.stringify(icaoList));
   const path = '/notam?itemas=' + encoded + '&limit=' + limit +
@@ -1763,6 +1850,12 @@ function _snapKey() {
   const variant = _routeVariant();
   return { email, dep, dest, variant };
 }
+// _notamId: generates the stable unique key for a NOTAM used in snapshots.
+// Uses itema[0] (the NOTAM's own primary location) + series + number + year.
+// CRITICAL: this key does NOT change when the same NOTAM is fetched via a
+// different FIR (e.g. LFEE:R1600/26 stays LFEE:R1600/26 whether fetched via
+// LFFF or LFEE). This is intentional — the snapshot key must be stable across
+// fetches regardless of which FIR happened to return the NOTAM.
 function _notamId(n) {
   // Include primary ICAO location to avoid collisions between countries with same ref
   const loc = ((n.itema && n.itema[0]) || '').toUpperCase().trim();
@@ -4841,6 +4934,12 @@ async function loadDefaults() {
         const mirror = {};
         for (const id of DEFAULT_FIELDS) if (id in data) mirror[id] = data[id];
         localStorage.setItem('notam_defaults', JSON.stringify(mirror));
+        // Restore date/time lock state from the same prefs response
+        if (data.dt_locked) {
+          _setDateTimeLock(true);
+          if (data.dep_date) document.getElementById('dep-date').value = data.dep_date;
+          if (data.dep_time) document.getElementById('dep-time').value = data.dep_time;
+        }
         return;
       }
     } catch(e) { console.warn('loadDefaults from prefs failed:', e.message); }
@@ -4922,13 +5021,29 @@ function emailPdf() {
 
 <!--MAPRENDER_END-->
 if (typeof _IS_MAP_PAGE === 'undefined') {
-  loadDefaults();
+  // ── Startup sequence — ORDER IS CRITICAL ────────────────────────────────────
+  // 1. loadArCreds()  — restores email+password from localStorage (and cached token)
+  // 2. initSync()     — sets up GitHub sync state
+  // 3. loadEmail()    — fetches email from /prefs/load or localStorage
+  //    └─ loadDefaults()   — needs email for /prefs/load; restores route/acft/
+  //       │                  equipment prefs AND date/time/lock from _prefs.json
+  //       └─ initDepDateTime() — sets dep date/time to now; SKIPPED if dt-lock
+  //                              was already restored by loadDefaults
+  //    └─ loadSnapshot()  — needs email for snapshot key; restores NEW/GONE state
+  // 4. loadAirportDb() — fetches OurAirports CSV (async, non-blocking)
+  //
+  // DO NOT move loadDefaults() before loadEmail() — it needs the email to call
+  // /prefs/load, otherwise it silently falls back to localStorage (device-local,
+  // not cross-device synced) and prefs won't sync between devices.
   loadArCreds();    // must run before loadEmail so ar email is available as fallback
   initSync();
   initAI();
   loadEmail().then(() => {
-    initDepDateTime();    // skipped if dt-lock is active
-    loadSnapshot(true);   // runs after email+lock are settled
+    // loadDefaults needs the email to fetch _prefs.json; call after loadEmail
+    loadDefaults().then(() => {
+      initDepDateTime();    // skipped if dt-lock was restored by loadDefaults
+    });
+    loadSnapshot(true);   // runs after email is settled
   });
   loadAirportDb();
   checkAzbaDiscrepancy();
@@ -5031,6 +5146,23 @@ function latToTileY(lat, zoom) {
   return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, zoom);
 }
 
+// applySnapshotDiff: compares current NOTAMs against the saved snapshot to
+// determine NEW and GONE status. Called after every fetch.
+//
+// CRITICAL — shownFirs:
+//   shownFirs = Set([...firs, ...extraFirs]) — the FIR ICAOs actually fetched
+//   for this route. Used to exclude FIR NOTAMs from airports not in this route.
+//   A NOTAM stored in allApts['LFFF'] is included in snapApts only if 'LFFF'
+//   is in shownFirs. This prevents GONE markers when a FIR is not fetched.
+//
+// CRITICAL — GONE detection:
+//   goneIds = snapshot keys not present in currentIds.
+//   currentIds is built from snapApts (visible, filtered NOTAMs only).
+//   If a NOTAM passes visibility filters in fetch N but not fetch N+1 (e.g.
+//   equipment filter changes), it will appear as GONE. This is intentional.
+//
+// FRAGILE: any change to shouldHide* functions can cause spurious NEW/GONE.
+// Always test the two-step scenario: fetch → add airport → fetch again.
 function applySnapshotDiff(allApts, shownFirs) {
   // snapApts: visible-NOTAM airports, excluding FIR stations not crossed by this route
   const snapApts = {};
