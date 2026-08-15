@@ -1688,20 +1688,47 @@ async function arGet(path, _retry = 0) {
 //   "LFFF" in results (first itema that matches the request list), but _notamId()
 //   returns "LFEE:..." (using itema[0]). This means the snapshot key and the
 //   allApts storage key can differ. applySnapshotDiff() must handle this correctly.
-async function fetchNotamsForIcaos(icaoList, startEpoch, endEpoch, limit = 800) {
+// fetchNotamsForIcaos: fetches NOTAMs from autorouter for a list of ICAOs.
+// CRITICAL — limit and batching:
+//   - autorouter API maximum limit is 100 per request (documented).
+//     We raised this to 800 which caused 400 errors. Instead we paginate
+//     using offset until we get fewer rows than the page size.
+//   - FIR ICAOs (LFRR, LFFF etc.) are fetched INDIVIDUALLY, not batched with
+//     airports. Batching a FIR with airports causes the FIR's NOTAMs to be
+//     truncated by the shared limit. See go() for the batching logic.
+//
+// CRITICAL — result keying:
+//   A NOTAM with itema=["LFEE","LFFF"] fetched via LFFF request is stored under
+//   "LFFF" in results (first itema that matches the request list), but _notamId()
+//   returns "LFEE:..." (using itema[0]). This means the snapshot key and the
+//   allApts storage key can differ. applySnapshotDiff() must handle this correctly.
+const AR_PAGE_SIZE = 100; // autorouter API hard maximum
+const AR_MAX_PAGES = 20;  // safety cap: 20 × 100 = 2000 NOTAMs per request
+
+async function fetchNotamsForIcaos(icaoList, startEpoch, endEpoch) {
   const encoded = encodeURIComponent(JSON.stringify(icaoList));
-  const path = '/notam?itemas=' + encoded + '&limit=' + limit +
-    '&startvalidity=' + startEpoch + '&endvalidity=' + endEpoch + '&offset=0';
-  const raw = await arGet(path);
-  // Initialise all requested ICAOs
   const results = {};
   icaoList.forEach(icao => { results[icao] = { notams: [], total: 0, error: null }; });
-  // Distribute rows: a NOTAM belongs to the first itema that is in our request list
-  (raw.rows || []).forEach(n => {
-    const candidates = (n.itema || []).map(x => x.toUpperCase());
-    const icao = candidates.find(x => results[x]) || candidates[0] || '';
-    if (results[icao]) { results[icao].notams.push(n); results[icao].total++; }
-  });
+
+  let offset = 0;
+  for (let page = 0; page < AR_MAX_PAGES; page++) {
+    const path = '/notam?itemas=' + encoded +
+      '&limit=' + AR_PAGE_SIZE +
+      '&startvalidity=' + startEpoch +
+      '&endvalidity=' + endEpoch +
+      '&offset=' + offset;
+    const raw = await arGet(path);
+    const rows = raw.rows || [];
+    // Distribute rows: a NOTAM belongs to the first itema in our request list
+    rows.forEach(n => {
+      const candidates = (n.itema || []).map(x => x.toUpperCase());
+      const icao = candidates.find(x => results[x]) || candidates[0] || '';
+      if (results[icao]) { results[icao].notams.push(n); results[icao].total++; }
+    });
+    // Stop if fewer rows than page size — no more pages
+    if (rows.length < AR_PAGE_SIZE) break;
+    offset += AR_PAGE_SIZE;
+  }
   return results;
 }
 
@@ -2505,12 +2532,12 @@ async function go() {
     // Route airports (no FIRs) in batches of 20
     for (let i = 0; i < routeSeq.length; i += 20) {
       const batch = routeSeq.slice(i, i+20);
-      const res = await fetchNotamsForIcaos(batch, startEpoch, endEpoch, 800);
+      const res = await fetchNotamsForIcaos(batch, startEpoch, endEpoch);
       Object.assign(routeApts, res);
     }
     // FIRs fetched individually with higher limit
     for (const fir of firs) {
-      const res = await fetchNotamsForIcaos([fir], startEpoch, endEpoch, 800);
+      const res = await fetchNotamsForIcaos([fir], startEpoch, endEpoch);
       Object.assign(routeApts, res);
     }
     const fetchedAt = new Date().toISOString();
@@ -2524,7 +2551,7 @@ async function go() {
       for (let i = 0; i < extraApts.length; i += 20) {
         const batch = extraApts.slice(i, i+20);
         try {
-          const res = await fetchNotamsForIcaos(batch, startEpoch, endEpoch, 800);
+          const res = await fetchNotamsForIcaos(batch, startEpoch, endEpoch);
           Object.assign(routeApts, res);
         } catch(e) {}
       }
@@ -2534,7 +2561,7 @@ async function go() {
     for (const fir of extraFirs) {
       if (allFetched.has(fir)) continue;
       try {
-        const res = await fetchNotamsForIcaos([fir], startEpoch, endEpoch, 800);
+        const res = await fetchNotamsForIcaos([fir], startEpoch, endEpoch);
         Object.assign(routeApts, res);
       } catch(e) {}
     }
@@ -2545,7 +2572,7 @@ async function go() {
       const batch = nearbyIcaos.slice(i, i+20);
       setStat('Nearby batch ' + (Math.floor(i/20)+1) + '/' + Math.ceil(nearbyIcaos.length/20) + '…');
       try {
-        const res = await fetchNotamsForIcaos(batch, startEpoch, endEpoch, 800);
+        const res = await fetchNotamsForIcaos(batch, startEpoch, endEpoch);
         Object.assign(nearbyApts, res);
       } catch(e) { batch.forEach(x => { nearbyApts[x] = { notams: [], total: 0, error: String(e) }; }); }
       setProg(62 + Math.round((i / Math.max(nearbyIcaos.length, 1)) * 33));

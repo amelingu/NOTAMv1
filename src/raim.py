@@ -187,11 +187,11 @@ def fetch_raim(airports, brief_start=0.0, brief_end=0.0, baro_aiding=False):
         except Exception:
             expected_end = None
 
-        # AUGUR /outage/ only accepts start_date = today at midnight UTC.
-        # This matches the AUGUR web tool behaviour and maximises the 72h
-        # prediction window (today 00:00z → today+3 00:00z), covering flights
-        # up to 3 days ahead. Sending the current time instead shortens the
-        # window by the hours already elapsed today.
+        # Send today at midnight UTC as start_date to maximise the 72h prediction
+        # window (today 00:00z → today+3 00:00z). Matches the AUGUR web tool behaviour.
+        # Note: AUGUR fixed the default start_date bug (June 2026) — the API now
+        # defaults to today if start_date is omitted, but we keep sending it explicitly
+        # to ensure the maximum window regardless of server-side defaults.
         start_date = dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%dT00:00:00Z')
         print(f"[raim] start_date={start_date}", flush=True)
 
