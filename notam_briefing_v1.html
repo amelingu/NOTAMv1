@@ -5076,23 +5076,34 @@ if (typeof _IS_MAP_PAGE === 'undefined') {
   // 3. loadEmail()    — fetches email from /prefs/load or localStorage
   //    └─ loadDefaults()   — needs email for /prefs/load; restores route/acft/
   //       │                  equipment prefs AND date/time/lock from _prefs.json
-  //       └─ initDepDateTime() — sets dep date/time to now; SKIPPED if dt-lock
-  //                              was already restored by loadDefaults
-  //    └─ loadSnapshot()  — needs email for snapshot key; restores NEW/GONE state
+  //       │                  Sets dep/dest via el.value (does NOT fire onchange)
+  //       ├─ initDepDateTime() — sets dep date/time to now; SKIPPED if dt-lock
+  //       │                      was already restored by loadDefaults
+  //       └─ loadSnapshot(true) — MUST be after loadDefaults so dep/dest are
+  //                               already set; restores alt1/alt2/tkof/extras.
+  //                               Setting el.value never fires onchange, so this
+  //                               call cannot be triggered by _applyDefaults.
   // 4. loadAirportDb() — fetches OurAirports CSV (async, non-blocking)
   //
   // DO NOT move loadDefaults() before loadEmail() — it needs the email to call
   // /prefs/load, otherwise it silently falls back to localStorage (device-local,
   // not cross-device synced) and prefs won't sync between devices.
+  // DO NOT run loadSnapshot(true) in parallel with loadDefaults() — it will
+  // compute the snapshot key before dep/dest are set and load the wrong snapshot.
   loadArCreds();    // must run before loadEmail so ar email is available as fallback
   initSync();
   initAI();
   loadEmail().then(() => {
-    // loadDefaults needs the email to fetch _prefs.json; call after loadEmail
+    // loadDefaults needs the email to fetch _prefs.json; call after loadEmail.
+    // loadSnapshot(true) must run AFTER loadDefaults() so dep/dest are already
+    // set before the snapshot key is computed — otherwise alt1/alt2/tkof/extras
+    // are restored for the wrong (empty) dep/dest and then discarded.
+    // Setting el.value in JS does NOT fire onchange, so loadSnapshot(true) is
+    // not triggered automatically when _applyDefaults sets dep/dest.
     loadDefaults().then(() => {
       initDepDateTime();    // skipped if dt-lock was restored by loadDefaults
+      loadSnapshot(true);   // must be after loadDefaults so dep/dest are set
     });
-    loadSnapshot(true);   // runs after email is settled
   });
   loadAirportDb();
   checkAzbaDiscrepancy();

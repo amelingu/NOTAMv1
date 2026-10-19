@@ -2793,7 +2793,29 @@ async function loadAzbaData(force = false) {
 
 function _azbaEntriesForZone(bareName) {
   if (!_azbaSchedule || !_azbaSchedule.available) return [];
-  return (_azbaSchedule.entries || []).filter(e => e.zone === bareName);
+  // Match on either e.zone (openAIP name) or e.zone_azba (SIA name) since
+  // the two naming systems can differ (e.g. geometry key R145 vs SIA LFR145B).
+  return (_azbaSchedule.entries || []).filter(e =>
+    e.zone === bareName || e.zone_azba === bareName ||
+    (e.zone_azba || '').replace(/^LF/, '') === bareName ||
+    e.zone === (bareName || '').replace(/^LF/, '')
+  );
+}
+
+function _azbaFmtSlot(debut, fin) {
+  // Format a time slot showing date when it changes across the slot,
+  // always showing date for clarity: "DD/MM HH:MMz – HH:MMz" or
+  // "DD/MM HH:MMz – DD/MM HH:MMz" when the slot spans midnight.
+  if (!debut || !fin) return '?';
+  try {
+    const s = new Date(debut), e = new Date(fin);
+    const sd = s.getUTCDate().toString().padStart(2,'0') + '/' + (s.getUTCMonth()+1).toString().padStart(2,'0');
+    const ed = e.getUTCDate().toString().padStart(2,'0') + '/' + (e.getUTCMonth()+1).toString().padStart(2,'0');
+    const st = s.getUTCHours().toString().padStart(2,'0') + ':' + s.getUTCMinutes().toString().padStart(2,'0');
+    const et = e.getUTCHours().toString().padStart(2,'0') + ':' + e.getUTCMinutes().toString().padStart(2,'0');
+    if (sd === ed) return sd + ' ' + st + 'z – ' + et + 'z';
+    return sd + ' ' + st + 'z – ' + ed + ' ' + et + 'z';
+  } catch(e) { return debut; }
 }
 
 function _azbaFmtTime(iso) {
@@ -2801,7 +2823,7 @@ function _azbaFmtTime(iso) {
   try {
     const d = new Date(iso);
     return d.getUTCHours().toString().padStart(2,'0') + ':'
-         + d.getUTCMinutes().toString().padStart(2,'0') + ' UTC';
+         + d.getUTCMinutes().toString().padStart(2,'0') + 'z';
   } catch(e) { return iso; }
 }
 
@@ -2833,7 +2855,7 @@ function _azbaPopupHtml(bareName) {
     schedHtml = '<div style="color:#2E7D32">Not active in the current publication window</div>';
   } else {
     schedHtml = entries.map(e =>
-      '<div>' + escH(_azbaFmtTime(e.debut)) + ' – ' + escH(_azbaFmtTime(e.fin)) + '</div>'
+      '<div>' + escH(_azbaFmtSlot(e.debut, e.fin)) + '</div>'
     ).join('');
   }
   // Use AZBA official name if available from schedule entries (may differ from
@@ -3099,7 +3121,7 @@ function azbaStatusHtml() {
       return {
         sortKey: e.debut,
         html: '<div>' + escH(displayLf) + ' — '
-          + escH(_azbaFmtTime(e.debut)) + ' / ' + escH(_azbaFmtTime(e.fin))
+          + escH(_azbaFmtSlot(e.debut, e.fin))
           + '</div>',
       };
     });
@@ -4437,23 +4459,34 @@ if (typeof _IS_MAP_PAGE === 'undefined') {
   // 3. loadEmail()    — fetches email from /prefs/load or localStorage
   //    └─ loadDefaults()   — needs email for /prefs/load; restores route/acft/
   //       │                  equipment prefs AND date/time/lock from _prefs.json
-  //       └─ initDepDateTime() — sets dep date/time to now; SKIPPED if dt-lock
-  //                              was already restored by loadDefaults
-  //    └─ loadSnapshot()  — needs email for snapshot key; restores NEW/GONE state
+  //       │                  Sets dep/dest via el.value (does NOT fire onchange)
+  //       ├─ initDepDateTime() — sets dep date/time to now; SKIPPED if dt-lock
+  //       │                      was already restored by loadDefaults
+  //       └─ loadSnapshot(true) — MUST be after loadDefaults so dep/dest are
+  //                               already set; restores alt1/alt2/tkof/extras.
+  //                               Setting el.value never fires onchange, so this
+  //                               call cannot be triggered by _applyDefaults.
   // 4. loadAirportDb() — fetches OurAirports CSV (async, non-blocking)
   //
   // DO NOT move loadDefaults() before loadEmail() — it needs the email to call
   // /prefs/load, otherwise it silently falls back to localStorage (device-local,
   // not cross-device synced) and prefs won't sync between devices.
+  // DO NOT run loadSnapshot(true) in parallel with loadDefaults() — it will
+  // compute the snapshot key before dep/dest are set and load the wrong snapshot.
   loadArCreds();    // must run before loadEmail so ar email is available as fallback
   initSync();
   initAI();
   loadEmail().then(() => {
-    // loadDefaults needs the email to fetch _prefs.json; call after loadEmail
+    // loadDefaults needs the email to fetch _prefs.json; call after loadEmail.
+    // loadSnapshot(true) must run AFTER loadDefaults() so dep/dest are already
+    // set before the snapshot key is computed — otherwise alt1/alt2/tkof/extras
+    // are restored for the wrong (empty) dep/dest and then discarded.
+    // Setting el.value in JS does NOT fire onchange, so loadSnapshot(true) is
+    // not triggered automatically when _applyDefaults sets dep/dest.
     loadDefaults().then(() => {
       initDepDateTime();    // skipped if dt-lock was restored by loadDefaults
+      loadSnapshot(true);   // must be after loadDefaults so dep/dest are set
     });
-    loadSnapshot(true);   // runs after email is settled
   });
   loadAirportDb();
   checkAzbaDiscrepancy();
